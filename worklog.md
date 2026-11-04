@@ -13,11 +13,11 @@ Chronological record of every work step. Newest first. Each entry links to evide
   - Created `docs/` and persisted everything that previously lived only in chat: `PRODUCT_BRIEF.md` (verbatim v1.0), `PRODUCT_AUDIT_REPORT.md` (full audit), `DECISIONS.md` (D1–D12 PENDING + adopted E1–E5), `ROADMAP.md` (phases + audit deltas), `ENVIRONMENT.md` (sandbox, network limits, skill reinstall commands), `SNAPSHOT.md` (master recovery doc v3, incl. Honesty Ledger), this worklog.
   - Established standing Persistence Protocol checklist in SNAPSHOT.md §Protocol.
   - **Remote limitation handled per requirement #8:** created bare mirror `/home/z/my-project-backup.git`, added as git remote `backup`, pushed `main`; parity proof via `git ls-remote backup`. Recorded that full off-sandbox recovery requires owner-provided remote.
-- **Commits:** (1) `docs: persist product foundation (brief v1.0, audit, decisions, roadmap, snapshot v3)` → SHA recorded below; (2) `docs: record git state + worklog for persistence step (snapshot v3.1)` → final HEAD.
-- **Verification evidence:**
-  - Local HEAD: `<recorded post-commit>` (see git log)
-  - `git ls-remote backup` SHA: `<recorded post-commit>`
-  - Parity: verified equal at commit time; re-runnable via SNAPSHOT.md §9 commands.
+- **Commits:** (1) `5851a6732b117acbd23392d931d6e0f90a8262d7` — `docs: persist product foundation (brief v1.0, audit, decisions, roadmap, snapshot v3)` (7 files, 1073 insertions); (2) this state-recording commit (final HEAD — see live `git rev-parse HEAD`).
+- **Verification evidence (first proof):**
+  - Local HEAD after commit 1: `5851a6732b117acbd23392d931d6e0f90a8262d7`
+  - `git ls-remote backup refs/heads/main`: `5851a6732b117acbd23392d931d6e0f90a8262d7`
+  - Parity: **EQUAL — proven**. Re-runnable anytime via SNAPSHOT.md §9 commands.
 - **State after step:** Phase 0 gate unchanged — awaiting owner decisions D1–D12. No code written.
 
 ### Step 2 — Product Brief received; Product Audit delivered

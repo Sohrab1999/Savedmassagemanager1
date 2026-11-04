@@ -75,15 +75,16 @@ Key runtime deps (see `package.json` for the authoritative list): next 16.1.1, r
 
 **Therefore the acceptance criterion ("sandbox destroyed → clone remote → full recovery") is PARTIALLY met:** code + all decisions + all documents survive via the repository; the two skills and the external remote require the documented recovery actions (skills: commands provided; remote: owner must supply). No false claim of full recovery is made.
 
-## 9. Git State (updated at snapshot time — verify live with commands in §Protocol)
+## 9. Git State (updated at snapshot time — verify live with commands below)
 
-| Field | Value at snapshot v3 |
+| Field | Value at snapshot v3.1 |
 |---|---|
 | Branch | `main` |
 | Working tree | clean at last check (all essential files committed) |
-| Content commit (all docs + scaffold) | see `git log` — commit message `docs: persist product foundation (brief v1.0, audit, decisions, roadmap, snapshot v3)` |
-| Remote `origin` | **NONE** (limitation §8) |
-| Remote `backup` (bare mirror `/home/z/my-project-backup.git`) | pushed; parity verified via `git ls-remote backup` at snapshot time (see `worklog.md` for recorded SHAs) |
+| Content commit (all docs + scaffold baseline) | `5851a6732b117acbd23392d931d6e0f90a8262d7` — `docs: persist product foundation (brief v1.0, audit, decisions, roadmap, snapshot v3)` |
+| Final state-recording commit | this commit (worklog/snapshot SHA recording) — see live `git rev-parse HEAD` |
+| Remote `origin` | **NONE** (limitation §8 — owner must provide) |
+| Remote `backup` | bare mirror `/home/z/my-project-backup.git`; `main` pushed; parity for `5851a67` **proven equal** via `git ls-remote backup` (evidence in `worklog.md` Step 3) |
 
 Because a commit cannot contain its own SHA, the authoritative live check is:
 
