@@ -16,8 +16,8 @@ Chronological record of every work step. Newest first. Each entry links to evide
   - `docs/ROADMAP.md`: baseline → Brief v1.2; Phase 0 rebuilt around the authorized scope (checklist gate + W1–W7); competitive-notes item marked not-in-scope; Phase 2 auth/storage lines updated (D14/D16); Phase 3 export line updated (HTML conditional).
   - `docs/SNAPSHOT.md` → **v5** (complete rewrite per protocol).
 - **Deliberately NOT done (owner gate):** no design work, no code, no stack selection, no wireframes — checklist approval required first.
-- **Commits:** (1) `e2a9f0c` — `docs: apply final rulings D14-D16 (brief v1.2) + phase 0 entry checklist draft`; (2) this state-recording commit (final HEAD — see live `git rev-parse HEAD`).
-- **Verification evidence:** `git ls-remote backup refs/heads/main` after push = local HEAD — **EQUAL, parity proven**. Re-runnable via SNAPSHOT §9 commands.
+- **Commits:** (1) `c97b3fa4d1a140d55b6c55dcb52b0eac4741d778` — `docs: apply final rulings D14-D16 (brief v1.2) + phase 0 entry checklist draft` (7 files, 238 insertions, 74 deletions; `docs/PHASE0_CHECKLIST.md` created); (2) this state-recording commit (final HEAD — see live `git rev-parse HEAD`).
+- **Verification evidence (commit 1):** `git ls-remote backup refs/heads/main` = `c97b3fa4d1a140d55b6c55dcb52b0eac4741d778` = local HEAD — **EQUAL, parity proven**. Final parity re-checkable via SNAPSHOT §9 commands.
 - **State after step:** Phase 0 authorized but gated on owner approval of `docs/PHASE0_CHECKLIST.md`. Open items: checklist review + D17 one-liner + A1–A8 individual review (W7, at Phase 0 exit) + D13 external remote. **No code written. No stack chosen.**
 
 ### Step 4 — Owner approved D1–D12; Product Brief v1.1 produced
