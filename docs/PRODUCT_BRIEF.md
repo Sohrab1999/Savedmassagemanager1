@@ -1,9 +1,9 @@
 # PRODUCT BRIEF — Personal Knowledge Manager
 
-**Version:** 1.1 — Approved Product Foundation
-**Status:** Approved (D1–D12 confirmed by owner 2026-11-04). Phase 0 kickoff still requires owner approval of remaining open items (§Appendix B).
-**Supersedes:** v1.0 (archived verbatim at `docs/PRODUCT_BRIEF_v1.0.md`)
-**Decision basis:** Owner decisions D1–D12 (2026-11-04) + Product Audit (`docs/PRODUCT_AUDIT_REPORT.md`)
+**Version:** 1.2 — Approved Product Foundation
+**Status:** Approved (D1–D12 confirmed 2026-11-04; final rulings D14–D16 + five binding instructions confirmed 2026-11-04). Phase 0 authorized by owner within a scoped mandate; entry checklist presented for owner review (`docs/PHASE0_CHECKLIST.md`) — design work starts only after checklist approval.
+**Supersedes:** v1.1 (deltas in `docs/CHANGELOG.md`); v1.0 archived verbatim at `docs/PRODUCT_BRIEF_v1.0.md`
+**Decision basis:** Owner decisions D1–D12 + final rulings D14–D16 + five binding instructions (2026-11-04) + Product Audit (`docs/PRODUCT_AUDIT_REPORT.md`)
 **Document language policy:** v1.1 is written in English as the project working language; the original Persian vision text is preserved verbatim. This is an explicit, documented choice (not silent).
 
 ---
@@ -18,7 +18,7 @@
 
 اصل بنیادی محصول این است که ذخیره‌سازی باید سریع و سازمان‌دهی باید انعطاف‌پذیر باشد.
 
-**Honest MVP positioning (v1.1):** The word «هوشمند» describes the product's *direction* (P1/P2 intelligence features), not its first release. The MVP deliberately delivers the foundation: fast manual capture, a structured personal library, fast retrieval, flexible organization, and full user ownership. Multi-channel ingestion begins in P1.
+**Honest MVP positioning (v1.2):** The word «هوشمند» describes the product's *direction* (P1/P2 intelligence features), not its first release. The MVP deliberately delivers the foundation: fast manual capture, a structured personal library, fast retrieval, flexible organization, and full user ownership. Multi-channel ingestion begins in P1.
 
 # 2. Problem Statement
 
@@ -74,7 +74,7 @@
 
 **6. User Ownership** — اطلاعات متعلق به کاربر است و باید امکان خروجی گرفتن و انتقال آن‌ها وجود داشته باشد. *(Operationalized: export and account deletion with full data erasure are explicit P0 requirements.)*
 
-# 6. Information Architecture v1.1
+# 6. Information Architecture v1.2
 
 ## Main Navigation (unchanged structure)
 
@@ -104,14 +104,14 @@ Canonical Item core: `user_id` + `content_type` + exactly one primary payload (`
 - Collection and Tag names are unique per user (case-normalized — assumption A4); renaming preserves all associations.
 - Nesting of Collections is out of scope (flat structure).
 
-# 7. MVP Scope v1.1 (deliverable C — full P0/P1/P2 boundaries)
+# 7. MVP Scope v1.2 (deliverable C — full P0/P1/P2 boundaries)
 
 ## P0 — Essential Features
 
 ### A. Authentication & Accounts
 - Register, login, logout, session management
 - **Password reset** (M1)
-- Email verification — gating policy = open decision **D14** (registered, not silently decided)
+- **Email verification — soft nudge, non-blocking (D14):** users may start using the full application without mandatory email verification. **Verified email is required for sensitive operations (data export)**. **Account deletion additionally requires appropriate identity re-authentication** (mechanism deferred to AD4, Phase 2)
 - **Account deletion with full data erasure** (M2, owner clarification 5)
 - Independent per-user personal space; strict data isolation (DoD)
 
@@ -155,17 +155,18 @@ Canonical Item core: `user_id` + `content_type` + exactly one primary payload (`
 ### H. Export (D10, M6 — DoD requirement)
 - **JSON export** (complete structured data: items, collections, tags, associations)
 - **ZIP archive** containing original files
-- **HTML bookmark export included** (judged inexpensive via the same export pipeline — assumption A1, confirmable)
+- **HTML bookmark export — conditional (A1, revised by owner instruction 2):** included only if its implementation cost and scope are validated; **not a mandatory MVP acceptance criterion** unless validated
+- **Export requires a verified email (D14)** — sensitive operation
 
 ### I. Trust Baseline
 - Privacy Policy + Terms pages (M7)
-- Persian + English UI (D2), RTL/LTR, Light/Dark mode
+- Persian + English UI (D2), RTL/LTR, Light/Dark mode *(dark-mode MVP scope = pending one-line confirmation **D17** — owner instruction 3; nothing silently kept or removed)*
 - Responsive mobile-first + desktop; Loading (skeletons), Empty, Error, Success states; confirmation dialogs; accessibility (v1.0 §7-G unchanged)
 
 ### File & Quota Policy (D8)
 - Max **25 MB per file**; per-user quota **500 MB** (configurable server-side)
 - Target types: images (JPEG/PNG/WebP/GIF), PDF, common documents — final MIME whitelist finalized in the Phase 2 security review (documented, not silently extended)
-- Enforcement: uploads blocked at quota limit with clear messaging; text notes and links remain unaffected (edge behavior = open decision **D16**)
+- Enforcement (D16): when the quota is reached, **additional file uploads are blocked** with clear messaging; **notes and links remain fully savable**
 - Quota usage visible in Settings
 
 ## P1 — Post-MVP (strategically ordered per audit C4)
@@ -194,7 +195,7 @@ Canonical Item core: `user_id` + `content_type` + exactly one primary payload (`
 
 Plus (new explicit exclusions, from audit "future" list): rich-text/markdown editing · bulk multi-select operations · nested/sub-collections · multi-attachment Items · saved searches · offline mode · keyboard command palette · public third-party API.
 
-# 8. Core User Journeys v1.1 (deliverable E)
+# 8. Core User Journeys v1.2 (deliverable E)
 
 **J1 — Capture (primary loop)**
 User opens Quick Capture (Home/FAB/toolbar) → single field: pastes a URL *or* types text *or* attaches a file/image (type inferred; manual override available but never required) → optional title/description → Save → success feedback → Item exists in Inbox with zero collections. If URL duplicate exists → subtle "already saved" indicator. If link → metadata fetch queued; Item usable immediately; metadata appears when ready.
@@ -212,9 +213,9 @@ Item detail → Edit / Favorite / Trash. Trash view → Restore / Delete permane
 Home (capture + recents + counts) → All Items → paginate, filter, sort → open Item. Collections/Favorites views are filtered lenses of the same library.
 
 **J6 — Export & Departure (User Ownership)**
-Settings → Export → receives JSON + ZIP (+ HTML bookmarks); data complete and human-readable. Settings → Delete account → explicit confirmation → all Items, files, tags, collections, and identity permanently erased.
+Settings → Export → (email-verification nudge resolved; **verified email required**, D14) → receives JSON + ZIP (+ HTML bookmarks only if A1 cost/scope validated); data complete and human-readable. Settings → Delete account → **identity re-authentication** (D14) → explicit confirmation → all Items, files, tags, collections, and identity permanently erased.
 
-# 9. Data Model v1.1 (product-level; storage implementation = AD1, deferred to Phase 2)
+# 9. Data Model v1.2 (product-level; storage implementation = AD1, deferred to Phase 2)
 
 **User:** id · email (unique) · display_name · created_at *(auth credential fields finalized in AD4)*
 
@@ -228,7 +229,7 @@ Settings → Export → receives JSON + ZIP (+ HTML bookmarks); data complete an
 
 **ItemTag:** item_id + tag_id (composite key)
 
-**Duplicate detection (D6):** on save, normalized-URL lookup; normalization = lowercase scheme/host, strip fragment and trailing slash; tracking-parameter stripping NOT included in MVP (open decision **D15**). No persistent duplicate field — computed at capture time.
+**Duplicate detection (D6 + D15):** on save, normalized-URL lookup; normalization = lowercase scheme/host, strip fragment and trailing slash, **plus removal of known tracking parameters only (`utm_*`, `fbclid`, `gclid`)** — meaningful query parameters that may change the destination or content are preserved; **no aggressive URL rewriting** (D15). No persistent duplicate field — computed at capture time.
 
 # 10. Design Direction
 
@@ -266,9 +267,9 @@ Carried from v1.0 §11: معماری قابل توسعه · جداسازی Front
 
 انتخاب تکنولوژی نهایی همچنان به مرحله Technical Architecture (Phase 2) موکول می‌شود. **No stack selection is made in this document.**
 
-# 12. MVP Success Metrics v1.1 (C8 resolved)
+# 12. MVP Success Metrics v1.2 (C8 resolved)
 
-| Metric | Operational definition (v1.1) |
+| Metric | Operational definition (v1.2) |
 |---|---|
 | **Activation** | % of new accounts saving ≥1 Item within their first session |
 | **Engagement** | Items saved per active user per week; distinct return visits to the library |
@@ -283,7 +284,7 @@ Carried from v1.0 §11: معماری قابل توسعه · جداسازی Front
 
 Phase 0 Product Discovery & UX (in progress) → Phase 1 Visual Design & Prototype → Phase 2 Technical Foundation → Phase 3 MVP Development → Phase 4 Quality & Launch (+ private alpha) → Phase 5 Telegram Integration. Roadmap includes audit deltas (export & account lifecycle in build phases, instrumentation in Phase 2, PWA/bookmarklet atop P1).
 
-# 14. MVP Definition of Done v1.1 (deliverable F — expands v1.0 §15)
+# 14. MVP Definition of Done v1.2 (deliverable F — expands v1.0 §15)
 
 MVP is release-ready when:
 
@@ -297,10 +298,10 @@ MVP is release-ready when:
 8. Duplicate URLs are **allowed** with a subtle indicator (D6).
 9. Trash supports restore, permanent delete, Empty Trash, and **30-day auto-purge** (D9).
 10. User data is **strictly isolated** between accounts.
-11. Experience is acceptable on mobile and desktop; **Persian (RTL, default) and English (LTR)** both functional; Light/Dark mode works (D2).
+11. Experience is acceptable on mobile and desktop; **Persian (RTL, default) and English (LTR)** both functional; Light/Dark mode works (D2) *(dark-mode MVP scope pending confirmation **D17** — owner instruction 3)*.
 12. Loading, empty, and error states are handled; destructive actions are confirmed.
-13. **Export produces complete JSON + ZIP of files (+ HTML bookmarks)** — human-readable, ownership-grade (D10).
-14. **Account deletion permanently erases** all items, files, tags, collections, and identity (M2).
+13. **Export produces complete JSON + ZIP of files** — human-readable, ownership-grade (D10); **requires verified email** (D14). HTML bookmarks ship only if A1 cost/scope validation passes — **not an acceptance criterion otherwise** (owner instruction 2).
+14. **Account deletion permanently erases** all items, files, tags, collections, and identity (M2), gated by **identity re-authentication** (D14).
 15. File constraints enforced: **25 MB/file, 500 MB user quota** (D8).
 16. Data persists across sessions and devices.
 
@@ -310,28 +311,30 @@ Build a place where valuable information never gets lost, forgotten, or buried.
 
 ---
 
-# Appendix A — Labeled Assumptions (A1–A8) — NOT silently decided; owner may veto
+# Appendix A — Labeled Assumptions (A1–A8) — explicitly UNRESOLVED until individually reviewed by owner
+
+> **Owner instruction (binding, 2026-11-04): silence is NOT approval.** Each assumption stays explicitly labeled and unresolved until the owner individually reviews it (scheduled as a required Phase 0 work item). No assumption may be treated as accepted by default.
 
 | # | Assumption | Basis |
 |---|---|---|
-| A1 | HTML bookmark export **is included** in P0 (judged "inexpensive" per D10 — derives from the same JSON export pipeline) | D10 |
+| A1 | HTML bookmark export **conditional**: included only if implementation cost & scope are validated; **not a mandatory MVP acceptance criterion** unless validated | D10 + owner instruction 2 |
 | A2 | `content_type` enum = `note · link · image · file`; video/audio are `file` (distinguished by MIME); no separate video type in MVP | D4/D12 |
 | A3 | "Subtle duplicate indicator" = non-blocking badge/link on the just-saved Item + small marker on library cards; never a modal interruption | D6 |
 | A4 | Collection/Tag names unique per user, case-normalized; renames preserve all associations | D1 hygiene |
 | A5 | Quota counts stored file bytes only (notes/links/metadata negligible); usage bar in Settings | D8 |
-| A6 | Duplicate-detection URL normalization = lowercase scheme/host, strip fragment + trailing slash; no tracking-param stripping in MVP | D6 |
+| A6 | ~~no tracking-param stripping in MVP~~ — **SUPERSEDED by D15 ruling**: normalization = lowercase scheme/host + strip fragment/trailing slash + remove known trackers (`utm_*`, `fbclid`, `gclid`) only; meaningful params preserved | D6 → D15 |
 | A7 | fa default with language switcher in Settings; locale-aware dates/numbers | D2 |
 | A8 | Home counts = total items, Inbox count, Collections count, Favorites count | D5 |
 
-# Appendix B — Remaining Unresolved Decisions (deliverable G)
+# Appendix B — Remaining Unresolved Items (deliverable G, updated by D14–D16 rulings)
 
-**Product decisions awaiting owner (blocks Phase 0 start):**
-- **D14 — Email verification gating:** (a) required before any use · (b) soft nudge, non-blocking (💡 recommendation) · (c) required only before export/deletion.
-- **D15 — URL normalization depth for duplicates:** (a) minimal (A6) (💡) · (b) also strip tracking parameters.
-- **D16 — Quota edge behavior:** (a) block uploads only; notes/links unaffected (💡) · (b) block all saves at limit.
-- Confirmation/veto of assumptions A1–A8 (silence at Phase 0 kickoff = accepted as labeled).
-- **D13 (from persistence step):** external git remote URL + credentials for true off-sandbox recovery (owner action, not blocking product work).
+**Resolved 2026-11-04 (final owner rulings — `docs/DECISIONS.md` §A2):** D14 (soft email verification; verified email for export; identity re-authentication for deletion) · D15 (controlled tracking-param stripping: `utm_*`, `fbclid`, `gclid` only) · D16 (quota blocks uploads only; notes/links stay savable).
+
+**Still unresolved (transparent register — nothing silently decided):**
+- **A1–A8 assumptions** — explicitly unresolved until individually reviewed by owner; **silence ≠ approval** (owner instruction 1). Scheduled as a required Phase 0 work item (exit gate).
+- **D17 — Dark-mode MVP scope (one-line confirmation requested with the Phase 0 checklist review):** owner instruction 3 keeps dark mode out of mandatory MVP scope *unless explicitly required in the approved brief*. Factual check: the approved brief (v1.1, accepted by owner) lists Light/Dark mode explicitly in §7-I, §10, and DoD #11. To avoid deciding silently in either direction, D17 asks the owner to confirm: **(a) retain Light/Dark in MVP** (current brief text) or **(b) demote dark mode to P1** (brief amended accordingly). Design foundations will use theme-agnostic semantic tokens so either outcome requires no rework.
+- **D13 — external git remote** (owner action; environment only; does not block product work).
 
 **Technical decisions (AD1–AD12) — intentionally open, resolved in Phase 2 Technical Architecture Document:** storage model for polymorphic Items, search backend + Persian normalization strategy, file storage & signed URLs + EXIF stripping, auth scheme & session strategy, API style + Telegram initData token-exchange design, soft-delete jobs, tenancy isolation, frontend/PWA architecture, i18n/RTL architecture, email delivery, background jobs, observability. See `docs/PRODUCT_AUDIT_REPORT.md` §6.
 
-**Gate:** No code, UI, or stack selection until owner approves this v1.1 + D14–D16 (+A1–A8) and authorizes Phase 0.
+**Gate (current):** Phase 0 is **authorized by the owner within a scoped mandate** — UX requirements & journeys · IA validation · persona/use-case validation · design principles & design-system foundations · wireframe planning for the four approved core screens. Entry checklist presented for owner review in `docs/PHASE0_CHECKLIST.md`. **No application code, no stack selection, no production UI, no implementation.**

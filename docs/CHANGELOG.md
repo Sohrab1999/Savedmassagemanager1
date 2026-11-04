@@ -1,5 +1,17 @@
 # Change Log — Product Brief
 
+## v1.1 → v1.2 (2026-11-04) — Final rulings D14–D16 + owner binding instructions
+
+**Basis:** Owner message 2026-11-04 — "The v1.1 deliverables and the overall direction are accepted, subject to the following final rulings." **Targeted update only**; no other changes were made (owner instruction 5).
+
+1. **D14 applied (email verification = soft nudge):** §7-A rewritten — non-blocking verification; users may use the app fully without verifying; **verified email required for sensitive operations (data export)**; **account deletion requires identity re-authentication** (mechanism deferred to AD4). Woven into §8-J6 and DoD #13/#14.
+2. **D15 applied (controlled URL normalization):** §9 duplicate detection — remove **known tracking parameters only** (`utm_*`, `fbclid`, `gclid`); meaningful query parameters preserved; **no aggressive rewriting**. Assumption **A6 marked SUPERSEDED** (recorded, not deleted).
+3. **D16 applied (quota edge behavior):** §7 File & Quota — at quota limit, **file uploads blocked** with clear messaging; **notes and links remain savable**.
+4. **Owner instruction 2 applied:** **HTML bookmark export made conditional** on validated implementation cost & scope — §7-H and DoD #13 amended; **not a mandatory MVP acceptance criterion** unless validated (revises A1).
+5. **Owner instruction 1 applied:** Appendix A re-titled — assumptions **explicitly UNRESOLVED until individually reviewed**; **silence ≠ approval** (supersedes the v1.1 "silence at kickoff = accepted" convention); explicit assumption review scheduled as a Phase 0 work item and Phase 0 exit-gate criterion.
+6. **Owner instruction 3 applied:** dark-mode MVP scope registered as **D17** (one-line owner confirmation) with the factual check recorded — the approved brief lists Light/Dark explicitly in §7-I, §10, DoD #11; markers added at §7-I and DoD #11; §10 Persian vision text left verbatim; nothing silently kept or removed.
+7. **Header/status updated:** v1.2; Phase 0 authorized within scoped mandate; entry checklist = `docs/PHASE0_CHECKLIST.md` (presented for owner review — no design work started). Internal section version labels aligned to v1.2.
+
 ## v1.0 → v1.1 (2026-11-04) — Decision application release
 
 **Basis:** Owner approval of audit direction + explicit decisions D1–D12 + six mandatory clarifications. No decisions were applied beyond those; new micro-gaps were registered as open decisions (D14–D16) and labeled assumptions (A1–A8), not silently resolved.

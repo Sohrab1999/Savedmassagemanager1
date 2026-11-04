@@ -2,7 +2,7 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 4 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 5 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
 
 ---
 
@@ -11,12 +11,12 @@
 | Field | Value |
 |---|---|
 | Product | Personal Knowledge Manager (PKM) web app — "Capture First, Organize Later" |
-| Brief | **v1.1 APPROVED-BASIS** (`docs/PRODUCT_BRIEF.md`; v1.0 archived at `docs/PRODUCT_BRIEF_v1.0.md`; change log `docs/CHANGELOG.md`) |
+| Brief | **v1.2 APPROVED** (`docs/PRODUCT_BRIEF.md`; v1.0 archived at `docs/PRODUCT_BRIEF_v1.0.md`; deltas `docs/CHANGELOG.md`) |
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
-| Decisions | **D1–D12 APPROVED by owner 2026-11-04** (`docs/DECISIONS.md` §A) |
-| **Current gate** | **Awaiting owner approval of D14–D16 (+ A1–A8 confirmation) to start Phase 0** — no code/UI/stack selection until then |
+| Decisions | **D1–D12 APPROVED (§A) + D14–D16 final rulings APPROVED (§A2) + five binding instructions — all 2026-11-04** (`docs/DECISIONS.md`) |
+| **Current gate** | **Phase 0 AUTHORIZED by owner (scoped mandate)** — design work starts only after owner approves `docs/PHASE0_CHECKLIST.md` (presented as DRAFT, awaiting review). No code/UI/stack selection until then — and no application code until Phase 2/3 regardless. |
 | Development status | **NOT STARTED** — codebase is the pristine Next.js scaffold + documentation. Intentional. |
-| Next allowed step | Upon owner approval: **Phase 0 kickoff** — UX Requirements, Design System definition, personas validation (per `docs/ROADMAP.md`). Design/UX work only; no application code yet (code starts Phase 2/3 after architecture doc). |
+| Next allowed step | Upon owner approval of the Phase 0 checklist: execute W1–W6 (`docs/PHASE0_CHECKLIST.md` §5) — IA validation, personas, UX requirements, journey validation, design foundations, wireframe plans for the 4 approved core screens (Quick Capture, Library, Item Detail, Search). Design/UX documentation only. |
 
 ## 2. Implemented Capabilities
 
@@ -39,20 +39,22 @@
 - **State:** Zustand (client) + TanStack Query (server state) available in package.json.
 - **Realtime (if ever needed):** socket.io as a separate mini service on its own port; frontend connects via `io("/?XTransformPort={port}")`, path `/`, never direct ports.
 - **Dev/ops:** `bun run dev` (port 3000, logs → `dev.log`); never `bun run build` in sandbox; single external port via Caddy gateway (`?XTransformPort=`).
-- **Product-level technical contracts (owner-mandated, binding for Phase 2 design):** Canonical Item ingestion contract (Brief §6) · async non-blocking link metadata fetch with SSRF protections (Brief §7-C) · file constraints 25 MB/file + 500 MB configurable quota (Brief §7) · fa-default i18n/RTL from day one (Brief §10) · export JSON+ZIP+HTML and account deletion with full erasure as P0 (Brief §7-H, §14).
+- **Product-level technical contracts (owner-mandated, binding for Phase 2 design):** Canonical Item ingestion contract (Brief §6) · async non-blocking link metadata fetch with SSRF protections (Brief §7-C) · file constraints 25 MB/file + 500 MB configurable quota; quota edge = uploads-only block, notes/links unaffected (D16, Brief §7) · fa-default i18n/RTL from day one (Brief §10) · email verification = soft nudge, verified email required for export, identity re-authentication for account deletion (D14, Brief §7-A) · duplicate normalization strips known trackers only — `utm_*`, `fbclid`, `gclid` (D15, Brief §9) · export JSON+ZIP mandatory, HTML conditional on A1 cost validation (Brief §7-H) · account deletion with full erasure as P0 (Brief §7-A).
 - Full environment detail: `docs/ENVIRONMENT.md`.
 
 ## 4. Product Decisions State
 
-- **D1–D12 (product): APPROVED 2026-11-04** — applied to Brief v1.1 with owner's six mandatory clarifications. Exact rulings in `docs/DECISIONS.md` §A.
-- **D14–D16 (product, new micro-gaps): PENDING** — email verification gating; URL normalization depth; quota edge behavior. Registered, NOT silently decided.
-- **A1–A8 (assumptions): LABELED in Brief Appendix A** — owner may veto; silence at Phase 0 kickoff = accepted as labeled.
+- **D1–D12 (product): APPROVED 2026-11-04** — applied to Brief v1.1 with owner's six mandatory clarifications. `docs/DECISIONS.md` §A.
+- **D14–D16 (final rulings): APPROVED 2026-11-04** — D14 soft email verification (verified email for export; re-auth for deletion) · D15 controlled tracking-param stripping (`utm_*`, `fbclid`, `gclid` only) · D16 quota blocks uploads only, notes/links savable. Applied to Brief v1.2. `docs/DECISIONS.md` §A2.
+- **Owner binding instructions (5):** silence ≠ approval for assumptions · HTML export conditional · dark mode outside mandatory MVP unless explicitly in approved brief · preserve boundaries / no new features · update DECISIONS+Brief only with rulings. `docs/DECISIONS.md` §A2.
+- **D17 (dark-mode scope confirmation): PENDING** — one-line ruling requested with the Phase 0 checklist review (factual check recorded: approved brief lists Light/Dark in §7-I, §10, DoD #11; nothing silently kept or removed).
+- **A1–A8 (assumptions): explicitly UNRESOLVED** — silence ≠ approval (owner instruction 1); individual review scheduled as Phase 0 work item W7 and Phase 0 exit-gate criterion. A6 superseded by D15 (recorded).
 - **D13 (environment): PENDING** — owner-provided external git remote for true off-sandbox recovery.
 - **AD1–AD12 (architecture): OPEN** — resolved in Phase 2 Technical Architecture Document, after Phase 0. Deliberately no stack selected.
 
 ## 5. Data Structure
 
-Current runtime schema = scaffold demo (User/Post) — **no PKM schema exists yet**. Target product-level model is Brief §9 (Item with `content_type` enum `note|link|image|file`, `mime_type`, `file_size`, `thumbnail_url`, `metadata_status`, soft delete; Collection/Tag unique-per-user; ItemCollection/ItemTag composite-key join tables for multi-membership D1; file cardinality 0..1 per D12). Storage implementation decision = AD1 (Phase 2).
+Current runtime schema = scaffold demo (User/Post) — **no PKM schema exists yet**. Target product-level model is Brief §9 (Item with `content_type` enum `note|link|image|file`, `mime_type`, `file_size`, `thumbnail_url`, `metadata_status`, soft delete; Collection/Tag unique-per-user; ItemCollection/ItemTag composite-key join tables for multi-membership D1; file cardinality 0..1 per D12; duplicate normalization per D15). Storage implementation decision = AD1 (Phase 2).
 
 ## 6. Dependencies
 
@@ -73,17 +75,17 @@ Key runtime deps (authoritative list in `package.json`): next 16.1.1, react 19, 
 | `~/.agents/skills/*` (UI Pro Max, Impeccable) | ⚠️ Outside repo | Skills install to home dir by design | Reinstall commands in `docs/ENVIRONMENT.md` §4 (verified working) |
 | `db/custom.db` contents | ⚠️ Scaffold-only | Runtime DB, scaffold demo data only, disposable | Recreated by `bun run db:push` |
 | Dev server process, env runtime | ⚠️ Not persistent | Process state | `bun run dev` |
-| Chat-only knowledge | ✅ Eliminated | — | All decisions/audit/brief/changelog persisted in `docs/` |
+| Chat-only knowledge | ✅ Eliminated | — | All decisions/audit/brief/changelog/checklist persisted in `docs/` |
 
 **Acceptance criterion status: PARTIALLY met** — code + all decisions + all documents survive via the repository; the two skills and the external remote require documented recovery actions (skills: commands provided; remote: owner must supply, D13). No false claim of full recovery is made.
 
 ## 9. Git State (verify live with the commands below — a commit cannot contain its own SHA)
 
-| Field | Value at snapshot v4.1 |
+| Field | Value at snapshot v5 |
 |---|---|
 | Branch | `main` |
 | Working tree | clean at last check |
-| v1.1 content commit | see `git log` — message `docs: product brief v1.1 (D1-D12 applied) + changelog + decisions + roadmap updates` |
+| v1.2 content commit | see `git log` — message `docs: apply final rulings D14-D16 (brief v1.2) + phase 0 entry checklist draft` |
 | State-recording commit | final HEAD — see live `git rev-parse HEAD` |
 | Remote `origin` | **NONE** (D13 pending — owner must provide) |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git`; parity proven at each step (evidence: `worklog.md`) |
@@ -98,23 +100,24 @@ git rev-parse HEAD && git status --short && git ls-remote backup | grep refs/hea
 ## 10. Recovery Procedure (fresh environment, no chat history)
 
 1. Obtain the repository (once owner provides remote: `git clone <URL>`; from sandbox mirror: `git clone /home/z/my-project-backup.git my-project`).
-2. Read in this order: this file → `docs/DECISIONS.md` → `docs/PRODUCT_BRIEF.md` (+ `CHANGELOG.md`) → `docs/PRODUCT_AUDIT_REPORT.md` → `docs/ROADMAP.md` → `docs/ENVIRONMENT.md` → `worklog.md`.
+2. Read in this order: this file → `docs/DECISIONS.md` → `docs/PRODUCT_BRIEF.md` (+ `CHANGELOG.md`) → `docs/PHASE0_CHECKLIST.md` → `docs/PRODUCT_AUDIT_REPORT.md` → `docs/ROADMAP.md` → `docs/ENVIRONMENT.md` → `worklog.md`.
 3. `bun install`
 4. `bun run db:push` (recreates SQLite from `prisma/schema.prisma`)
 5. Reinstall AI skills if needed: `docs/ENVIRONMENT.md` §4.
 6. `bun run dev` → port 3000; check `dev.log`.
-7. Resume from §1 "Next allowed step". If D14–D16 are still PENDING in `docs/DECISIONS.md`, **do not start Phase 0** — request the owner's decisions.
+7. Resume from §1 "Next allowed step". If the Phase 0 checklist is still DRAFT/unapproved in `docs/PHASE0_CHECKLIST.md`, **do not start design work** — request the owner's review.
 
 ## 11. Work Completed (chronological, details in `worklog.md`)
 
 1. Environment prep: UI Pro Max + Impeccable installed globally & functionally verified (E1, E2).
 2. Product Brief v1.0 received; full PM audit delivered (C1–C8, M1–M10, AD1–AD12, D1–D12).
 3. Persistence Protocol established (E3/E4): docs/ created; Brief v1.0 + Audit + Decisions + Roadmap + Environment + Snapshot + worklog persisted; mirror `backup` remote with proven parity.
-4. **Owner approved D1–D12 + six mandatory clarifications → Product Brief v1.1 produced** (complete, internally consistent; canonical Item contract; final IA definitions; P0/P1/P2 boundaries; updated journeys; 16-criterion DoD; assumptions A1–A8 labeled; new open decisions D14–D16 registered — nothing silently decided). CHANGELOG.md added. Gate now: Phase 0 kickoff approval.
+4. Owner approved D1–D12 + six mandatory clarifications → Product Brief v1.1 produced; assumptions A1–A8 labeled; new open decisions D14–D16 registered. CHANGELOG.md added.
+5. **Owner issued final rulings D14–D16 + five binding instructions + scoped Phase 0 authorization → Brief v1.2 produced (targeted deltas only); DECISIONS.md §A2 added; D17 (dark-mode scope) registered pending; `docs/PHASE0_CHECKLIST.md` created (DRAFT, presented for owner review); ROADMAP Phase 0 rebuilt around the authorized scope; SNAPSHOT v5.** No design work started — gated on checklist approval.
 
 ## 12. Remaining Work
 
-See `docs/ROADMAP.md` (single source for phases/checkboxes). Immediate: D14–D16 + A1–A8 confirmation → Phase 0 kickoff (UX requirements, design system, persona validation) → Phase 1 prototype → Phase 2 architecture (AD1–AD12) → build.
+See `docs/ROADMAP.md` (single source for phases/checkboxes). Immediate: owner review of `docs/PHASE0_CHECKLIST.md` (+ optional D17 one-liner) → Phase 0 W1–W6 → W7 (A1–A8 individual review + D17 + exit package) → Phase 1 prototype → Phase 2 architecture (AD1–AD12) → build.
 
 ---
 

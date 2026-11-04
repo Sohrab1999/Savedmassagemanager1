@@ -1,25 +1,34 @@
 # Development Roadmap — Personal Knowledge Manager
 
-**Baseline:** Product Brief v1.1 (`docs/PRODUCT_BRIEF.md`), adjusted per `docs/PRODUCT_AUDIT_REPORT.md` (deltas marked ⟵audit).
-**Current phase:** Phase 0 — brief approved; **kickoff awaiting owner approval of D14–D16 (+A1–A8)**.
-**Last updated:** 2026-11-04 (after D1–D12 approval + Brief v1.1)
+**Baseline:** Product Brief v1.2 (`docs/PRODUCT_BRIEF.md`), adjusted per `docs/PRODUCT_AUDIT_REPORT.md` (deltas marked ⟵audit).
+**Current phase:** Phase 0 — **authorized by owner (scoped)**; design work gated on owner approval of `docs/PHASE0_CHECKLIST.md`.
+**Last updated:** 2026-11-04 (after D14–D16 final rulings + scoped Phase 0 authorization)
 
 ---
 
-## Phase 0 — Product Discovery & UX Definition (IN PROGRESS — kickoff gated)
+## Phase 0 — Product Discovery & UX Definition (AUTHORIZED — design work gated on checklist approval)
 
-- [x] تکمیل Product Brief (v1.0 received; **v1.1 produced & approved-basis recorded**)
+**Owner-authorized scope (2026-11-04):** UX requirements & journeys · IA validation · personas & use-cases · design principles & design-system foundations · wireframe planning for the four approved core screens. Full checklist: `docs/PHASE0_CHECKLIST.md`.
+
+- [x] تکمیل Product Brief (v1.0 received; v1.1 approved-basis; **v1.2 current** — D14–D16 final rulings applied)
 - [x] Product Audit delivered (validation, strategy, MVP audit, UX/IA, technical considerations) ⟵audit
-- [x] **Owner decisions D1–D12** (APPROVED 2026-11-04 — see `docs/DECISIONS.md`)
-- [x] Product Brief v1.1 (complete, internally consistent; canonical Item contract; final IA definitions; operationalized metrics)
-- [x] User Journeys drafted (J1–J6, Brief §8) — user validation deferred to prototype testing (Phase 1)
-- [x] Information Architecture finalized (Home/Inbox/All Items/Collections/Favorites/Trash definitions — Brief §6)
+- [x] **Owner decisions D1–D12** (APPROVED 2026-11-04 — see `docs/DECISIONS.md` §A)
+- [x] **Owner final rulings D14–D16 + five binding instructions** (APPROVED 2026-11-04 — `docs/DECISIONS.md` §A2; A1–A8 explicitly unresolved until review — silence ≠ approval)
+- [x] Product Brief v1.2 (complete, internally consistent; canonical Item contract; final IA definitions; operationalized metrics)
+- [x] User Journeys drafted (J1–J6, Brief §8) — validation = Phase 0 work item W4
+- [x] Information Architecture finalized (Home/Inbox/All Items/Collections/Favorites/Trash definitions — Brief §6) — validation = Phase 0 work item W1
 - [x] Success metric definitions (Brief §12)
-- [ ] **Owner decisions D14–D16 + A1–A8 confirmation** (GATE — Phase 0 kickoff)
-- [ ] UX Requirements definition (detailed interaction specs per view)
-- [ ] Design System definition (fa-first typography, tokens, RTL rules — with UI Pro + Impeccable skills)
-- [ ] Qualitative competitive notes (no invented data)
-- [ ] Personas validated against D11 lens (students & professionals)
+- [x] **Phase 0 entry checklist prepared & presented** (`docs/PHASE0_CHECKLIST.md` — DRAFT, awaiting owner review — GATE for design work)
+- [ ] **Owner approves Phase 0 entry checklist** (+ optional D17 one-liner) — GATE
+- [ ] W1 · D0-3 Information architecture validation
+- [ ] W2 · D0-4 Personas & use-cases validation (D11 lens)
+- [ ] W3 · D0-1 UX Requirements specification (traceable to Brief §7 / decisions / audit M-items)
+- [ ] W4 · D0-2 Core user journeys validated (J1–J6 ↔ requirement matrix)
+- [ ] W5 · D0-5 Design principles + design-system foundations (fa-first typography criteria, theme-agnostic semantic tokens, RTL rules)
+- [ ] W6 · D0-6 Wireframe plan for the four approved core screens (Quick Capture, Library, Item Detail, Search — blueprint only; visuals = Phase 1)
+- [ ] W7 · A1–A8 individual assumption review + D17 ruling + Phase 0 exit package (owner)
+
+*Not authorized in Phase 0 scope: qualitative competitive notes (available on request); all stack/architecture work (AD1–AD12, Phase 2).*
 
 ## Phase 1 — Visual Design & Prototype
 
@@ -39,9 +48,9 @@
 - [ ] Technical Architecture Document resolving AD1–AD12 (incl. Telegram-readiness checklist ⟵audit)
 - [ ] Stack confirmation (sandbox stack: Next.js 16 App Router + TS + Prisma/SQLite + shadcn/ui — confirm or adjust)
 - [ ] Database design (PKM schema per Brief §9 replacing scaffold User/Post demo)
-- [ ] Authentication implementation (incl. M1 password reset; verification gating per D14)
+- [ ] Authentication implementation (incl. M1 password reset; D14: soft verification nudge, verified email for export, re-auth for deletion)
 - [ ] Account deletion + data erasure (M2)
-- [ ] Storage implementation (25 MB/file, 500 MB quota per D8; MIME validation; per-user isolation)
+- [ ] Storage implementation (25 MB/file, 500 MB quota per D8; D16: uploads blocked at limit, notes/links unaffected; MIME validation; per-user isolation)
 - [ ] API design (versioned; Telegram initData → session token exchange endpoint designed now ⟵audit AD5)
 - [ ] Async link metadata fetcher, SSRF-safe (D3/M9) + background jobs (AD11)
 - [ ] Event instrumentation + observability baseline (AD12 ⟵audit)
@@ -55,7 +64,7 @@
 - [ ] Search & Filtering (+ description + file name; Persian normalization M8 ⟵audit)
 - [ ] Content Management (+ 30-day trash policy D9 ⟵audit)
 - [ ] Link metadata pipeline (async, non-blocking)
-- [ ] Export (JSON + ZIP + HTML per D10 — required by DoD; in Phase 3 ⟵audit C6)
+- [ ] Export (JSON + ZIP per D10 — mandatory; HTML bookmarks conditional on A1 cost/scope validation — owner instruction 2; in Phase 3 ⟵audit C6)
 - [ ] Responsive UI (mobile-first, sticky footer, states, i18n fa/en RTL/LTR)
 - [ ] Legal pages: Privacy Policy + Terms (M7 ⟵audit)
 

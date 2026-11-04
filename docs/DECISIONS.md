@@ -33,14 +33,32 @@ Applied to Product Brief v1.1 (`docs/PRODUCT_BRIEF.md`); change details in `docs
 
 ---
 
-## B. Product Decisions PENDING OWNER (block Phase 0 start)
+## A2. Product Decisions D14–D16 — ✅ APPROVED by owner, 2026-11-04 (final rulings)
 
-| ID | Decision | Options | 💡 Recommendation | Status |
-|----|----------|---------|-------------------|--------|
-| D14 | Email verification gating | (a) required before any use · (b) soft nudge, non-blocking · (c) required only before export/deletion | (b) soft nudge | **PENDING** |
-| D15 | URL normalization depth for duplicate detection | (a) minimal: lowercase scheme/host, strip fragment + trailing slash · (b) also strip tracking parameters | (a) minimal for MVP | **PENDING** |
-| D16 | Quota edge behavior | (a) block uploads only; notes/links unaffected · (b) block all saves at limit | (a) uploads only | **PENDING** |
-| A1–A8 | Labeled assumptions (Brief Appendix A) — owner may veto; silence at Phase 0 kickoff = accepted as labeled | see Brief §Appendix A | — | **PENDING** (non-blocking unless vetoed) |
+Applied to Product Brief v1.2 (`docs/PRODUCT_BRIEF.md`); exact deltas in `docs/CHANGELOG.md` (v1.1 → v1.2).
+
+| ID | Decision | Owner Ruling (verbatim intent) | Status |
+|----|----------|-------------------------------|--------|
+| D14 | Email verification gating | **Option B approved (soft nudge). Users may start using the application without mandatory email verification. Verified email is required for sensitive operations such as data export. Account deletion must still require appropriate identity re-authentication.** | ✅ APPROVED |
+| D15 | URL normalization for duplicate detection | **Controlled option B approved. Remove known tracking parameters only — `utm_*`, `fbclid`, `gclid`. Preserve meaningful query parameters that may change the destination or content. Do not perform aggressive URL rewriting.** | ✅ APPROVED |
+| D16 | Quota edge behavior | **Option A approved. When the file quota is reached, block additional file uploads only. Notes and links must remain savable.** | ✅ APPROVED |
+
+**Owner binding instructions accompanying the rulings (2026-11-04) — binding, recorded verbatim in intent:**
+1. **Silence ≠ approval for A1–A8** — each assumption stays explicitly labeled and unresolved until individually reviewed (supersedes the earlier "silence at kickoff = accepted" convention). Scheduled as a required Phase 0 work item and Phase 0 exit-gate criterion.
+2. **HTML bookmark export remains conditional** on validated implementation cost & scope; not a mandatory MVP acceptance criterion unless validated (revises A1 / DoD #13).
+3. **Dark mode outside mandatory MVP scope** unless explicitly required in the approved Product Brief → factual check: the approved brief (v1.1, accepted by owner) lists Light/Dark explicitly (§7-I, §10, DoD #11) → registered as **D17** for a one-line owner confirmation rather than silently kept or removed (see §B).
+4. **Preserve all previously approved product boundaries; do not introduce additional features.**
+5. **DECISIONS.md and the Product Brief updated only with these rulings**; all remaining assumptions and unresolved decisions recorded transparently.
+6. **Phase 0 authorized ONLY within this scope:** UX requirements & core user journeys · information architecture validation · persona & use-case validation · design principles & design-system foundations · wireframe planning for the four approved core screens. No application code, no stack selection, no production UI, no implementation. Entry checklist presented for owner review (`docs/PHASE0_CHECKLIST.md`) before any design work starts.
+
+---
+
+## B. Product Decisions PENDING OWNER (non-blocking for the authorized Phase 0 scope)
+
+| ID | Decision | Options / Question | 💡 Recommendation | Status |
+|----|----------|--------------------|-------------------|--------|
+| D17 | Dark-mode MVP scope (raised by owner instruction 3) | (a) retain Light/Dark in MVP (current brief text: §7-I, §10, DoD #11) · (b) demote dark mode to P1, light-only MVP | (a) retain — explicitly listed in the approved brief; foundations use theme-agnostic semantic tokens so (b) stays cheap if chosen later | **PENDING** — one-line ruling requested together with the Phase 0 checklist review |
+| A1–A8 | Labeled assumptions (Brief Appendix A) — **explicit individual review required; silence ≠ approval** (owner instruction 1) | see Brief §Appendix A | — | **UNRESOLVED** (required Phase 0 work item W7; each confirmed / vetoed / amended at Phase 0 exit) |
 | D13 | External git remote URL + credentials for off-sandbox disaster recovery | owner provides remote / accept same-fs mirror only | provide remote | **PENDING** (owner action; does not block product work) |
 
 ---
