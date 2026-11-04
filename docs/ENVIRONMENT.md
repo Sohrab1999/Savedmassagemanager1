@@ -19,6 +19,7 @@
 
 - `github.com` — reachable (HTTPS 200); **git push/pull over HTTPS works** (verified 2026-11-04).
 - `api.github.com` — **HTTP 403 for anonymous calls** (rate-limited from this IP). **Authenticated calls with a valid token succeed (HTTP 200 — verified 2026-11-04)**. Any CLI that calls the GitHub API anonymously may hang/retry (observed with `npx skills add`; the files still download before the stall).
+- **Consequence for status checks (verified 2026-11-04):** API-based repo checkers can misreport a NON-empty repo as "This repository is empty." (the REST API answers `{"message":"Git Repository is empty."}`, HTTP 409, for repos without commits — and a rate-limited 403 is easily misread the same way). **Authoritative checks:** `git ls-remote <url>`, the GitHub web UI, `raw.githubusercontent.com`, or a fresh clone — never an API wrapper.
 - npm registry — reachable.
 
 ## 3. Project Command Surface
@@ -63,25 +64,27 @@ npx -y skills add pbakaus/impeccable -g -y
 ### Pre-installed platform skills (in-repo, survive clone)
 `skills/` at repo root already contains ASR, LLM, TTS, VLM, agent-browser, etc. These are part of the sandbox platform and tracked in git.
 
-## 5. Git / Remote State — EXTERNAL BACKUP ACTIVE (D13 resolved 2026-11-04)
+## 5. Git / Remote State — EXTERNAL BACKUP ACTIVE & INDEPENDENTLY RE-VERIFIED (D13 resolved + re-verified 2026-11-04)
 
-- **`origin` (permanent external backup):** `https://github.com/Sohrab1999/Savedmassagemanager1` — **public** repository, default branch `main`. Configured 2026-11-04 by owner instruction (resolves decision D13). Repo was verified **empty** before the first push (nothing overwritten); full local history preserved and pushed.
+- **`origin` (permanent external backup):** `https://github.com/Sohrab1999/Savedmassagemanager1` — **public** repository (proven by fully anonymous access), default branch `main`. Configured 2026-11-04 by owner instruction (resolves decision D13). Repo was verified **empty** before the first push (nothing overwritten); full local history pushed. **Independently re-verified 2026-11-04 via credential-free channels:** anonymous `git ls-remote` → `refs/heads/main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; fresh anonymous clone (11 commits, all docs present, clean `fsck`); repo page and exact commit page HTTP 200; `raw.githubusercontent.com` serves file contents.
+- **"This repository is empty." displays are a checker artifact, not repo state** — see §2 (API rate-limit 403 / 409 empty-repo message). Trust only git-tier or web-tier checks.
 - **`backup` (secondary):** bare mirror `/home/z/my-project-backup.git` (same filesystem; kept as fast local redundancy).
-- **Push policy (Persistence Protocol step 6):** after every step, push `main` to **every** configured remote and prove parity: `git ls-remote origin` and `git ls-remote backup` must both equal `git rev-parse HEAD`.
-- **Authentication (no credentials in the repository):**
-  - No `gh` CLI in sandbox; git uses the built-in credential store: `credential.helper=store` → `~/.git-credentials` (**outside the repo, mode 0600**).
-  - The access token is **not recorded anywhere in this repository or its history** (verified by full-history scan on 2026-11-04). Never paste, store, or commit it in the repo; never embed it in remote URLs.
-  - **Security recommendation (owner):** the token was shared through chat during setup — rotate/revoke it after setup is confirmed and issue a fine-grained PAT limited to this repository with `Contents: Read/Write` only. Rotation: create the new PAT on GitHub, then overwrite the stored entry:
+- **Push policy (Persistence Protocol step 6):** after every step, push `main` to **every** configured remote and prove parity: `git ls-remote origin` and `git ls-remote backup` must both equal `git rev-parse HEAD`. **Current exception (security closure, 2026-11-04): no GitHub credential exists in the sandbox — `origin` pushes are blocked until the owner supplies a new credential; `backup` parity is always provable.**
+- **Authentication (no credentials in the repository — and none currently in the sandbox):**
+  - No `gh` CLI; git credential helper is `store` → `~/.git-credentials` (**outside the repo, mode 0600**). The previously stored entry was **REMOVED on 2026-11-04 (security closure)**: the chat-shared token is treated as compromised and must be **revoked by the owner**; it was never reused after exposure, and it is **not in the repository, its history, the backup mirror, remote URLs, shell history, or logs** (verified 2026-11-04: working-tree scan incl. hidden/ignored files, pickaxe scan over all refs and the mirror, token-length probe).
+  - ⚠️ **`git credential store` writes credentials in PLAINTEXT.** File mode 0600 only shields against other local users — not against disk access, backups, or sandbox snapshots. Prefer **Git Credential Manager on Windows** (OS keychain integration); Linux equivalent: `libsecret`/keychain helpers.
+  - **Owner actions:** (1) **revoke the exposed PAT** (GitHub → Settings → Personal access tokens → fine-grained tokens); (2) optionally issue a replacement fine-grained PAT limited to this repository with `Contents: Read/Write` only; (3) load it locally (never in chat, never in the repo):
     ```bash
     printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=NEW_TOKEN\n' | git credential approve
     ```
+    Until then `git push origin …` fails fast with prompts disabled (`GIT_TERMINAL_PROMPT=0`) — expected behavior, not an outage.
 - **Recovery procedure (fresh environment, no sandbox):**
-  1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read requires no auth; push requires the stored credential).
-  2. Restore push credential via the rotation command above (or `git remote set-url origin <URL>` if cloning your own fork).
+  1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read requires no auth — verified by fresh anonymous clone 2026-11-04).
+  2. Restore the push credential via the `git credential approve` command above (owner-provided token).
   3. If a same-filesystem mirror is available: `git remote add backup /home/z/my-project-backup.git`.
   4. Verify parity: `git rev-parse HEAD` == `git ls-remote origin refs/heads/main`.
   5. Continue with `docs/SNAPSHOT.md` §10.
-- Acceptance criterion ("sandbox destroyed → clone remote + read docs = full recovery") is now **met for the repository itself** (code + docs + complete history). Non-repo artifacts (AI skills, runtime DB, dev server) remain documented in `docs/SNAPSHOT.md` §8.
+- Acceptance criterion ("sandbox destroyed → clone remote + read docs = full recovery") is **met for the repository up to the last SHA proven on `origin` (`e5898b2…`, which already contains all product documents, complete history, and SNAPSHOT v6)**. Any commit newer than that lives on `backup` only until the owner restores a push credential — tracked in `docs/SNAPSHOT.md` §8/§9. Non-repo artifacts (AI skills, runtime DB, dev server) remain documented in `docs/SNAPSHOT.md` §8.
 
 ## 6. Git Hygiene Notes (updated 2026-11-04 — both actions DONE before first external push)
 

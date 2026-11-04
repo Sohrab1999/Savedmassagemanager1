@@ -2,7 +2,7 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 6 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 7 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
 
 ---
 
@@ -14,7 +14,7 @@
 | Brief | **v1.2 APPROVED** (`docs/PRODUCT_BRIEF.md`; v1.0 archived at `docs/PRODUCT_BRIEF_v1.0.md`; deltas `docs/CHANGELOG.md`) |
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | **D1–D12 APPROVED (§A) + D14–D16 final rulings APPROVED (§A2) + five binding instructions + D13 APPROVED & DONE (external GitHub backup)** — all 2026-11-04 (`docs/DECISIONS.md`) |
-| External backup | ✅ **`origin` = `https://github.com/Sohrab1999/Savedmassagemanager1` (public)** — full history pushed, SHA parity verified; secondary same-fs mirror `backup` maintained |
+| External backup | ✅ **`origin` = `https://github.com/Sohrab1999/Savedmassagemanager1` (public)** — full history pushed; parity **independently re-verified via credential-free channels** (anonymous `ls-remote` + fresh anonymous clone, 2026-11-04); `origin` push temporarily **blocked** (no credential in sandbox — security closure; owner to supply new PAT); secondary same-fs mirror `backup` maintained |
 | **Current gate** | **Phase 0 AUTHORIZED by owner (scoped mandate)** — design work starts only after owner approves `docs/PHASE0_CHECKLIST.md` (presented as DRAFT, awaiting review). No code/UI/stack selection until then — and no application code until Phase 2/3 regardless. |
 | Development status | **NOT STARTED** — codebase is the pristine Next.js scaffold + documentation. Intentional. |
 | Next allowed step | Upon owner approval of the Phase 0 checklist: execute W1–W6 (`docs/PHASE0_CHECKLIST.md` §5) — IA validation, personas, UX requirements, journey validation, design foundations, wireframe plans for the 4 approved core screens (Quick Capture, Library, Item Detail, Search). Design/UX documentation only. |
@@ -40,7 +40,7 @@
 - **State:** Zustand (client) + TanStack Query (server state) available in package.json.
 - **Realtime (if ever needed):** socket.io as a separate mini service on its own port; frontend connects via `io("/?XTransformPort={port}")`, path `/`, never direct ports.
 - **Dev/ops:** `bun run dev` (port 3000, logs → `dev.log`); never `bun run build` in sandbox; single external port via Caddy gateway (`?XTransformPort=`).
-- **Git/backup policy:** after every step push `main` to **every** remote (`origin` + `backup`) and prove SHA parity. Credentials only via `~/.git-credentials` outside the repo; never embed tokens in remote URLs or files (`docs/ENVIRONMENT.md` §5).
+- **Git/backup policy:** after every step push `main` to **every** remote (`origin` + `backup`) and prove SHA parity. Credentials only via `~/.git-credentials` outside the repo; never embed tokens in remote URLs or files. **Current state: credential store intentionally EMPTY (security closure 2026-11-04) — `origin` push blocked until the owner supplies a new credential; `backup` parity always provable** (`docs/ENVIRONMENT.md` §5).
 - **Product-level technical contracts (owner-mandated, binding for Phase 2 design):** Canonical Item ingestion contract (Brief §6) · async non-blocking link metadata fetch with SSRF protections (Brief §7-C) · file constraints 25 MB/file + 500 MB configurable quota; quota edge = uploads-only block, notes/links unaffected (D16, Brief §7) · fa-default i18n/RTL from day one (Brief §10) · email verification = soft nudge, verified email required for export, identity re-authentication for account deletion (D14, Brief §7-A) · duplicate normalization strips known trackers only — `utm_*`, `fbclid`, `gclid` (D15, Brief §9) · export JSON+ZIP mandatory, HTML conditional on A1 cost validation (Brief §7-H) · account deletion with full erasure as P0 (Brief §7-A).
 - Full environment detail: `docs/ENVIRONMENT.md`.
 
@@ -51,7 +51,7 @@
 - **Owner binding instructions (5):** silence ≠ approval for assumptions · HTML export conditional · dark mode outside mandatory MVP unless explicitly in approved brief · preserve boundaries / no new features · update DECISIONS+Brief only with rulings. `docs/DECISIONS.md` §A2.
 - **D17 (dark-mode scope confirmation): PENDING** — one-line ruling requested with the Phase 0 checklist review (factual check recorded: approved brief lists Light/Dark in §7-I, §10, DoD #11; nothing silently kept or removed).
 - **A1–A8 (assumptions): explicitly UNRESOLVED** — silence ≠ approval (owner instruction 1); individual review scheduled as Phase 0 work item W7 and Phase 0 exit-gate criterion. A6 superseded by D15 (recorded).
-- **D13 (external backup): ✅ APPROVED & DONE 2026-11-04** — owner provided `https://github.com/Sohrab1999/Savedmassagemanager1` (public); configured as `origin`; complete history pushed; parity verified. Credential stored outside the repo; rotation recommended.
+- **D13 (external backup): ✅ APPROVED & DONE 2026-11-04** — owner provided `https://github.com/Sohrab1999/Savedmassagemanager1` (public); configured as `origin`; complete history pushed; parity verified. Credential stored outside the repo; rotation recommended. **Re-verified 2026-11-04 via credential-free channels (anonymous ls-remote + fresh anonymous clone → `main = e5898b2…`); "empty" displays diagnosed as API-rate-limit checker artifact; exposed chat-shared PAT removed from the local credential store, revocation pending owner action; origin push blocked until a new credential is supplied.**
 - **AD1–AD12 (architecture): OPEN** — resolved in Phase 2 Technical Architecture Document, after Phase 0. Deliberately no stack selected.
 
 ## 5. Data Structure
@@ -72,34 +72,37 @@ Key runtime deps (authoritative list in `package.json`): next 16.1.1, react 19, 
 
 | Item | Status | Cause | Recovery |
 |---|---|---|---|
-| External git backup (`origin`) | ✅ **ACTIVE** — `https://github.com/Sohrab1999/Savedmassagemanager1` (public) | D13 resolved 2026-11-04 by owner | Push-verified with SHA parity at every step; repo was empty before first push (nothing overwritten) |
-| Push credential | ⚠️ Stored at `~/.git-credentials` (outside repo, 0600) — lost with sandbox | Sandbox has no keychain; token shared via chat → **rotation recommended** (`docs/ENVIRONMENT.md` §5) | Re-issue fine-grained PAT (this repo, `Contents: R/W`) → `git credential approve` one-liner in §5 |
-| Bare mirror `backup` remote | ⚠️ Same-filesystem only | Redundant convenience copy | Survives project-dir loss, not total sandbox destruction — `origin` is the durable backup |
+| External git backup (`origin`) | ✅ **ACTIVE & independently re-verified 2026-11-04** — `https://github.com/Sohrab1999/Savedmassagemanager1` (public) | D13 resolved by owner; re-verified anonymously (`main = e5898b2…`, fresh clone OK) | "empty"-display reports = API checker artifact (ENVIRONMENT §2); repo was empty before first push (nothing overwritten) |
+| Push credential | 🚫 **REMOVED from sandbox 2026-11-04 (security closure)** — store now empty | Chat-exposed PAT must be revoked by owner; reuse prohibited; `git credential store` is plaintext (GCM recommended on Windows) | Owner revokes old PAT → issues fine-grained PAT (this repo, `Contents: R/W`) → load via `git credential approve` one-liner (ENVIRONMENT §5); until then origin push is blocked |
+| Bare mirror `backup` remote | ⚠️ Same-filesystem only; **currently the only remote holding the newest commit(s)** | Redundant convenience copy; origin push blocked (security closure) | Survives project-dir loss, not total sandbox destruction — `origin` becomes durable again once the owner restores a credential |
 | `~/.agents/skills/*` (UI Pro Max, Impeccable) | ⚠️ Outside repo | Skills install to home dir by design | Reinstall commands in `docs/ENVIRONMENT.md` §4 (verified working) |
 | `db/custom.db` contents | ⚠️ Local runtime file (untracked) | Runtime DB, scaffold demo data only, disposable | Recreated by `bun run db:push`; needs `.env` (§3) |
 | Dev server process, env runtime | ⚠️ Not persistent | Process state | `bun run dev` |
-| Public-visibility note | ℹ️ `origin` repo is **public** | Owner-created repo; no secrets in repo/history (full scan 2026-11-04) | Owner may flip to private in GitHub settings at any time; docs contain no credentials by design |
+| Public-visibility note | ℹ️ `origin` repo is **public** (proven 2026-11-04: anonymous clone + web pages HTTP 200, no auth) | Owner-created repo; no secrets in repo/history/mirror (re-scanned 2026-11-04) | Owner may flip to private in GitHub settings at any time; docs contain no credentials by design |
 | Chat-only knowledge | ✅ Eliminated | — | All decisions/audit/brief/changelog/checklist persisted in `docs/` |
 
-**Acceptance criterion status: MET for the repository** — code + complete history + all decisions + all documents survive via the public GitHub remote; recovery = clone + read `docs/SNAPSHOT.md` §10. Non-repo artifacts (skills, runtime DB, dev server, credential) have documented recovery actions. No false claim is made beyond this.
+**Acceptance criterion status: MET for the repository up to `e5898b2`** — code + complete history + all decisions + all product documents (incl. SNAPSHOT v6) are on the public GitHub remote and were **successfully recovered in a fresh anonymous clone** (verified 2026-11-04, no credentials, separate temp directory). The only content newer than `e5898b2` is this verification report itself (snapshot v7 delta), held on `backup` until the owner restores a push credential. Non-repo artifacts (skills, runtime DB, dev server, push credential) have documented recovery actions. No false claim is made beyond this.
 
 ## 9. Git State (verify live with the commands below — a commit cannot contain its own SHA)
 
-| Field | Value at snapshot v6 |
+| Field | Value at snapshot v7 |
 |---|---|
 | Branch | `main` (only branch) |
 | Working tree | clean at last check |
-| Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — push verified; parity re-checkable live |
-| Remote `backup` | bare mirror `/home/z/my-project-backup.git` — push verified |
-| Setup commits (this step) | `55c04e3` (secret hygiene: untrack `.env`/`db`, gitignore) + docs commit + evidence commit — see `git log` / `worklog.md` Step 6 |
+| Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — **verified anonymously: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`**; push currently **blocked** (no credential in sandbox — security closure) |
+| Remote `backup` | bare mirror `/home/z/my-project-backup.git` — push verified every step |
+| Last SHA proven on origin | `e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea` (= parent of this snapshot; contains ALL product docs + complete history + SNAPSHOT v6) |
+| Pending on origin | exactly this verification-report delta (snapshot v7 + worklog Step 7 + ENVIRONMENT §2/§5 + DECISIONS D13 status) — on `backup` now; pushed to `origin` as soon as the owner restores a credential |
 | Final HEAD | see live `git rev-parse HEAD` |
 
 Authoritative live check:
 
 ```bash
 git rev-parse HEAD && git status --short \
- && git ls-remote origin refs/heads/main && git ls-remote backup refs/heads/main
-# local HEAD must equal BOTH remote SHAs
+ && git ls-remote backup refs/heads/main \
+ && GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true git -c credential.helper= ls-remote https://github.com/Sohrab1999/Savedmassagemanager1.git refs/heads/main
+# backup/main must equal local HEAD (pushed every step);
+# origin is checked ANONYMOUSLY (no credential exists in the sandbox — security closure) and shows its true current state
 ```
 
 ## 10. Recovery Procedure (fresh environment, no chat history)
@@ -119,6 +122,7 @@ git rev-parse HEAD && git status --short \
 4. Owner approved D1–D12 + six mandatory clarifications → Product Brief v1.1 produced; A1–A8 labeled; D14–D16 registered.
 5. Owner issued final rulings D14–D16 + five binding instructions + scoped Phase 0 authorization → Brief v1.2; DECISIONS §A2; D17 registered pending; `docs/PHASE0_CHECKLIST.md` created (DRAFT, awaiting owner review); SNAPSHOT v5. No design work — gated on checklist approval.
 6. **D13 resolved by owner: GitHub origin configured & pushed.** Auth state inspected (no gh CLI → git credential store used, outside repo, 0600) · repo verified public + **empty** before push (nothing overwritten) · **secret-hygiene commit `55c04e3`** (untracked `.env` + `db/custom.db`; `.gitignore` +`/db/`,`*.db`) · **full-history secret scan clean** (no PATs/API keys/private keys/AWS keys; `.env` was a benign local path; PAT confirmed absent from tree & history) · complete history pushed to `origin` + `backup` · SHA parity proven on both · docs updated (ENVIRONMENT §2/§5/§6/§7, DECISIONS D13 row only, SNAPSHOT v6, worklog).
+7. **Owner challenged the backup ("This repository is empty."); independent re-verification ordered.** Verdict: parity claim **CONFIRMED** via credential-free channels — anonymous `git ls-remote` (`main = e5898b2…`), fresh anonymous clone in /tmp (11 commits, all required docs, clean `fsck`), repo/commit web pages HTTP 200, raw content served; **"empty" display diagnosed as API-rate-limit/409 checker artifact** (ENVIRONMENT §2). **Security closure:** the single plaintext stored credential REMOVED (store now empty); PAT proven absent from repo/history/mirror/logs; plaintext-store risk + GCM recommendation documented; revocation pending owner; **origin push blocked until a new credential** — honest deltas recorded in §8/§9. SNAPSHOT v7, worklog Step 7, ENVIRONMENT §2/§5, DECISIONS D13 status line.
 
 ## 12. Remaining Work
 
