@@ -14,8 +14,8 @@ Chronological record of every work step. Newest first. Each entry links to evide
   - Added `docs/CHANGELOG.md` (exact v1.0→v1.1 deltas, 18 change groups).
   - Updated `docs/DECISIONS.md`: D1–D12 ✅ APPROVED with owner wording; **new micro-gaps registered as D14 (email verification gating), D15 (URL normalization depth), D16 (quota edge behavior) — PENDING, not silently decided**; assumptions A1–A8 labeled in Brief Appendix A; E6 documented (v1.1 English working language).
   - Updated `docs/SNAPSHOT.md` to v4 (state, decisions, git-state basis) and `docs/ROADMAP.md` (Phase 0 checklist: brief/decisions/IA/journeys/metrics ✅; kickoff gate = D14–D16 + A1–A8).
-- **Commits:** (1) v1.1 content commit → SHA in `git log` (message `docs: product brief v1.1 (D1-D12 applied) ...`); (2) state-recording commit (final HEAD).
-- **Verification evidence:** parity proven via `git ls-remote backup` vs `git rev-parse HEAD` at commit time (see commit messages + live commands in SNAPSHOT §9).
+- **Commits:** (1) `69e142d804b92de2b4656d3a3e86bf6a59735b9b` — `docs: product brief v1.1 (D1-D12 applied) + changelog + decisions + roadmap updates` (7 files, 886 insertions, 463 deletions; v1.0 rename preserved by git); (2) this state-recording commit (final HEAD — see live `git rev-parse HEAD`).
+- **Verification evidence:** `git ls-remote backup refs/heads/main` after commit (1) = `69e142d804b92de2b4656d3a3e86bf6a59735b9b` = local HEAD — **EQUAL, parity proven**. Re-runnable via SNAPSHOT §9 commands.
 - **State after step:** **No code written. No stack chosen.** Gate: awaiting owner approval of D14–D16 (+A1–A8) to start Phase 0.
 
 ### Step 3 — Persistence Protocol established; project state persisted to repository
