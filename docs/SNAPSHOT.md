@@ -2,7 +2,7 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 5 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 6 · **Date:** 2026-11-04 · **Snapshot author:** Z.ai Code agent
 
 ---
 
@@ -13,7 +13,8 @@
 | Product | Personal Knowledge Manager (PKM) web app — "Capture First, Organize Later" |
 | Brief | **v1.2 APPROVED** (`docs/PRODUCT_BRIEF.md`; v1.0 archived at `docs/PRODUCT_BRIEF_v1.0.md`; deltas `docs/CHANGELOG.md`) |
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
-| Decisions | **D1–D12 APPROVED (§A) + D14–D16 final rulings APPROVED (§A2) + five binding instructions — all 2026-11-04** (`docs/DECISIONS.md`) |
+| Decisions | **D1–D12 APPROVED (§A) + D14–D16 final rulings APPROVED (§A2) + five binding instructions + D13 APPROVED & DONE (external GitHub backup)** — all 2026-11-04 (`docs/DECISIONS.md`) |
+| External backup | ✅ **`origin` = `https://github.com/Sohrab1999/Savedmassagemanager1` (public)** — full history pushed, SHA parity verified; secondary same-fs mirror `backup` maintained |
 | **Current gate** | **Phase 0 AUTHORIZED by owner (scoped mandate)** — design work starts only after owner approves `docs/PHASE0_CHECKLIST.md` (presented as DRAFT, awaiting review). No code/UI/stack selection until then — and no application code until Phase 2/3 regardless. |
 | Development status | **NOT STARTED** — codebase is the pristine Next.js scaffold + documentation. Intentional. |
 | Next allowed step | Upon owner approval of the Phase 0 checklist: execute W1–W6 (`docs/PHASE0_CHECKLIST.md` §5) — IA validation, personas, UX requirements, journey validation, design foundations, wireframe plans for the 4 approved core screens (Quick Capture, Library, Item Detail, Search). Design/UX documentation only. |
@@ -25,7 +26,7 @@
 - `src/app/page.tsx` — scaffold demo landing page (the only user-visible route)
 - `src/app/api/route.ts` — scaffold demo `GET /api` returning `{ message: "Hello, world!" }`
 - `prisma/schema.prisma` — scaffold demo models `User` / `Post` (to be replaced by PKM schema per Brief §9 in Phase 2)
-- `db/custom.db` — empty scaffold SQLite runtime DB
+- `db/custom.db` — local SQLite runtime DB (**untracked** since 2026-11-04; recreated by `bun run db:push`)
 - Full shadcn/ui component set in `src/components/ui/` (New York style, ~45 components) — available, unused
 - `mini-services/`, `examples/`, `.zscripts/` — sandbox platform scaffolding, untouched
 
@@ -33,12 +34,13 @@
 
 - **Framework:** Next.js 16 App Router + TypeScript 5 (non-negotiable). Only route visible to users: `/` (`src/app/page.tsx`). No other pages until development phases define them.
 - **Styling:** Tailwind CSS 4 + shadcn/ui (use existing components; do not rebuild). No indigo/blue colors unless owner requests. Responsive, mobile-first mandatory. Sticky footer rule: root wrapper `min-h-screen flex flex-col`, footer `mt-auto`.
-- **Data:** Prisma ORM + SQLite only (`db/custom.db`). Schema in `prisma/schema.prisma`. Apply with `bun run db:push`. Client via `import { db } from '@/lib/db'`.
+- **Data:** Prisma ORM + SQLite only (`db/custom.db`, **untracked**). Schema in `prisma/schema.prisma`. Apply with `bun run db:push`. Client via `import { db } from '@/lib/db'`. Fresh clone needs `.env` with `DATABASE_URL=file:/home/z/my-project/db/custom.db` (`docs/ENVIRONMENT.md` §6).
 - **API pattern:** use API routes (`src/app/api/**`), **not** server actions.
 - **AI SDK:** `z-ai-web-dev-sdk` server-side only (API routes / mini services).
 - **State:** Zustand (client) + TanStack Query (server state) available in package.json.
 - **Realtime (if ever needed):** socket.io as a separate mini service on its own port; frontend connects via `io("/?XTransformPort={port}")`, path `/`, never direct ports.
 - **Dev/ops:** `bun run dev` (port 3000, logs → `dev.log`); never `bun run build` in sandbox; single external port via Caddy gateway (`?XTransformPort=`).
+- **Git/backup policy:** after every step push `main` to **every** remote (`origin` + `backup`) and prove SHA parity. Credentials only via `~/.git-credentials` outside the repo; never embed tokens in remote URLs or files (`docs/ENVIRONMENT.md` §5).
 - **Product-level technical contracts (owner-mandated, binding for Phase 2 design):** Canonical Item ingestion contract (Brief §6) · async non-blocking link metadata fetch with SSRF protections (Brief §7-C) · file constraints 25 MB/file + 500 MB configurable quota; quota edge = uploads-only block, notes/links unaffected (D16, Brief §7) · fa-default i18n/RTL from day one (Brief §10) · email verification = soft nudge, verified email required for export, identity re-authentication for account deletion (D14, Brief §7-A) · duplicate normalization strips known trackers only — `utm_*`, `fbclid`, `gclid` (D15, Brief §9) · export JSON+ZIP mandatory, HTML conditional on A1 cost validation (Brief §7-H) · account deletion with full erasure as P0 (Brief §7-A).
 - Full environment detail: `docs/ENVIRONMENT.md`.
 
@@ -49,7 +51,7 @@
 - **Owner binding instructions (5):** silence ≠ approval for assumptions · HTML export conditional · dark mode outside mandatory MVP unless explicitly in approved brief · preserve boundaries / no new features · update DECISIONS+Brief only with rulings. `docs/DECISIONS.md` §A2.
 - **D17 (dark-mode scope confirmation): PENDING** — one-line ruling requested with the Phase 0 checklist review (factual check recorded: approved brief lists Light/Dark in §7-I, §10, DoD #11; nothing silently kept or removed).
 - **A1–A8 (assumptions): explicitly UNRESOLVED** — silence ≠ approval (owner instruction 1); individual review scheduled as Phase 0 work item W7 and Phase 0 exit-gate criterion. A6 superseded by D15 (recorded).
-- **D13 (environment): PENDING** — owner-provided external git remote for true off-sandbox recovery.
+- **D13 (external backup): ✅ APPROVED & DONE 2026-11-04** — owner provided `https://github.com/Sohrab1999/Savedmassagemanager1` (public); configured as `origin`; complete history pushed; parity verified. Credential stored outside the repo; rotation recommended.
 - **AD1–AD12 (architecture): OPEN** — resolved in Phase 2 Technical Architecture Document, after Phase 0. Deliberately no stack selected.
 
 ## 5. Data Structure
@@ -70,50 +72,53 @@ Key runtime deps (authoritative list in `package.json`): next 16.1.1, react 19, 
 
 | Item | Status | Cause | Recovery |
 |---|---|---|---|
-| Git remote (GitHub/GitLab) | ❌ NONE (D13 pending) | No credentials/tokens/SSH in sandbox | Owner provides URL + credentials → `git remote add origin <URL> && git push -u origin main` (`docs/ENVIRONMENT.md` §5) |
-| Bare mirror `backup` remote | ⚠️ Same-filesystem only | Sandbox has no external git host access | `/home/z/my-project-backup.git` — survives project-dir loss, NOT total sandbox destruction |
+| External git backup (`origin`) | ✅ **ACTIVE** — `https://github.com/Sohrab1999/Savedmassagemanager1` (public) | D13 resolved 2026-11-04 by owner | Push-verified with SHA parity at every step; repo was empty before first push (nothing overwritten) |
+| Push credential | ⚠️ Stored at `~/.git-credentials` (outside repo, 0600) — lost with sandbox | Sandbox has no keychain; token shared via chat → **rotation recommended** (`docs/ENVIRONMENT.md` §5) | Re-issue fine-grained PAT (this repo, `Contents: R/W`) → `git credential approve` one-liner in §5 |
+| Bare mirror `backup` remote | ⚠️ Same-filesystem only | Redundant convenience copy | Survives project-dir loss, not total sandbox destruction — `origin` is the durable backup |
 | `~/.agents/skills/*` (UI Pro Max, Impeccable) | ⚠️ Outside repo | Skills install to home dir by design | Reinstall commands in `docs/ENVIRONMENT.md` §4 (verified working) |
-| `db/custom.db` contents | ⚠️ Scaffold-only | Runtime DB, scaffold demo data only, disposable | Recreated by `bun run db:push` |
+| `db/custom.db` contents | ⚠️ Local runtime file (untracked) | Runtime DB, scaffold demo data only, disposable | Recreated by `bun run db:push`; needs `.env` (§3) |
 | Dev server process, env runtime | ⚠️ Not persistent | Process state | `bun run dev` |
+| Public-visibility note | ℹ️ `origin` repo is **public** | Owner-created repo; no secrets in repo/history (full scan 2026-11-04) | Owner may flip to private in GitHub settings at any time; docs contain no credentials by design |
 | Chat-only knowledge | ✅ Eliminated | — | All decisions/audit/brief/changelog/checklist persisted in `docs/` |
 
-**Acceptance criterion status: PARTIALLY met** — code + all decisions + all documents survive via the repository; the two skills and the external remote require documented recovery actions (skills: commands provided; remote: owner must supply, D13). No false claim of full recovery is made.
+**Acceptance criterion status: MET for the repository** — code + complete history + all decisions + all documents survive via the public GitHub remote; recovery = clone + read `docs/SNAPSHOT.md` §10. Non-repo artifacts (skills, runtime DB, dev server, credential) have documented recovery actions. No false claim is made beyond this.
 
 ## 9. Git State (verify live with the commands below — a commit cannot contain its own SHA)
 
-| Field | Value at snapshot v5 |
+| Field | Value at snapshot v6 |
 |---|---|
-| Branch | `main` |
+| Branch | `main` (only branch) |
 | Working tree | clean at last check |
-| v1.2 content commit | see `git log` — message `docs: apply final rulings D14-D16 (brief v1.2) + phase 0 entry checklist draft` |
-| State-recording commit | final HEAD — see live `git rev-parse HEAD` |
-| Remote `origin` | **NONE** (D13 pending — owner must provide) |
-| Remote `backup` | bare mirror `/home/z/my-project-backup.git`; parity proven at each step (evidence: `worklog.md`) |
+| Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — push verified; parity re-checkable live |
+| Remote `backup` | bare mirror `/home/z/my-project-backup.git` — push verified |
+| Setup commits (this step) | `55c04e3` (secret hygiene: untrack `.env`/`db`, gitignore) + docs commit + evidence commit — see `git log` / `worklog.md` Step 6 |
+| Final HEAD | see live `git rev-parse HEAD` |
 
 Authoritative live check:
 
 ```bash
-git rev-parse HEAD && git status --short && git ls-remote backup | grep refs/heads/main
-# local HEAD must equal backup/main SHA
+git rev-parse HEAD && git status --short \
+ && git ls-remote origin refs/heads/main && git ls-remote backup refs/heads/main
+# local HEAD must equal BOTH remote SHAs
 ```
 
 ## 10. Recovery Procedure (fresh environment, no chat history)
 
-1. Obtain the repository (once owner provides remote: `git clone <URL>`; from sandbox mirror: `git clone /home/z/my-project-backup.git my-project`).
+1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read; push credential per `docs/ENVIRONMENT.md` §5).
 2. Read in this order: this file → `docs/DECISIONS.md` → `docs/PRODUCT_BRIEF.md` (+ `CHANGELOG.md`) → `docs/PHASE0_CHECKLIST.md` → `docs/PRODUCT_AUDIT_REPORT.md` → `docs/ROADMAP.md` → `docs/ENVIRONMENT.md` → `worklog.md`.
-3. `bun install`
-4. `bun run db:push` (recreates SQLite from `prisma/schema.prisma`)
-5. Reinstall AI skills if needed: `docs/ENVIRONMENT.md` §4.
-6. `bun run dev` → port 3000; check `dev.log`.
-7. Resume from §1 "Next allowed step". If the Phase 0 checklist is still DRAFT/unapproved in `docs/PHASE0_CHECKLIST.md`, **do not start design work** — request the owner's review.
+3. `bun install` · create `.env` (`DATABASE_URL=file:/home/z/my-project/db/custom.db`) · `bun run db:push`.
+4. Reinstall AI skills if needed: `docs/ENVIRONMENT.md` §4.
+5. `bun run dev` → port 3000; check `dev.log`.
+6. Resume from §1 "Next allowed step". If the Phase 0 checklist is still DRAFT/unapproved in `docs/PHASE0_CHECKLIST.md`, **do not start design work** — request the owner's review.
 
 ## 11. Work Completed (chronological, details in `worklog.md`)
 
 1. Environment prep: UI Pro Max + Impeccable installed globally & functionally verified (E1, E2).
 2. Product Brief v1.0 received; full PM audit delivered (C1–C8, M1–M10, AD1–AD12, D1–D12).
-3. Persistence Protocol established (E3/E4): docs/ created; Brief v1.0 + Audit + Decisions + Roadmap + Environment + Snapshot + worklog persisted; mirror `backup` remote with proven parity.
-4. Owner approved D1–D12 + six mandatory clarifications → Product Brief v1.1 produced; assumptions A1–A8 labeled; new open decisions D14–D16 registered. CHANGELOG.md added.
-5. **Owner issued final rulings D14–D16 + five binding instructions + scoped Phase 0 authorization → Brief v1.2 produced (targeted deltas only); DECISIONS.md §A2 added; D17 (dark-mode scope) registered pending; `docs/PHASE0_CHECKLIST.md` created (DRAFT, presented for owner review); ROADMAP Phase 0 rebuilt around the authorized scope; SNAPSHOT v5.** No design work started — gated on checklist approval.
+3. Persistence Protocol established (E3/E4): docs/ created; all foundation docs persisted; mirror `backup` remote with proven parity.
+4. Owner approved D1–D12 + six mandatory clarifications → Product Brief v1.1 produced; A1–A8 labeled; D14–D16 registered.
+5. Owner issued final rulings D14–D16 + five binding instructions + scoped Phase 0 authorization → Brief v1.2; DECISIONS §A2; D17 registered pending; `docs/PHASE0_CHECKLIST.md` created (DRAFT, awaiting owner review); SNAPSHOT v5. No design work — gated on checklist approval.
+6. **D13 resolved by owner: GitHub origin configured & pushed.** Auth state inspected (no gh CLI → git credential store used, outside repo, 0600) · repo verified public + **empty** before push (nothing overwritten) · **secret-hygiene commit `55c04e3`** (untracked `.env` + `db/custom.db`; `.gitignore` +`/db/`,`*.db`) · **full-history secret scan clean** (no PATs/API keys/private keys/AWS keys; `.env` was a benign local path; PAT confirmed absent from tree & history) · complete history pushed to `origin` + `backup` · SHA parity proven on both · docs updated (ENVIRONMENT §2/§5/§6/§7, DECISIONS D13 row only, SNAPSHOT v6, worklog).
 
 ## 12. Remaining Work
 
@@ -132,8 +137,8 @@ Checklist (all items mandatory, evidence-based):
 3. [ ] Git state recorded: branch, commit SHA(s), working-tree status, remote name(s) + verified remote SHA.
 4. [ ] `git status` reviewed before commit — no essential file left untracked/unstaged; nothing essential only in temp locations.
 5. [ ] Commit with a descriptive message.
-6. [ ] Push to every configured remote (`backup` today; `origin` once owner provides it, D13) and **prove parity** with `git ls-remote <remote>` vs `git rev-parse HEAD`.
+6. [ ] Push to **every** configured remote (`origin` = GitHub + `backup` = local mirror) and **prove parity** with `git ls-remote <remote>` vs `git rev-parse HEAD`.
 7. [ ] Record evidence (SHAs, verification output) in `worklog.md` entry for the step.
-8. [ ] Any information that cannot live in the repo → §8 Honesty Ledger with cause + recovery method. Never claim full recoverability falsely.
+8. [ ] Any information that cannot live in the repo → §8 Honesty Ledger with cause + recovery method. Never claim full recoverability falsely. **Never store credentials in the repository.**
 
-**Acceptance criterion:** if this sandbox is destroyed right now, cloning the remote (once it exists) + reading this repository must restore exact project state and allow continuing from the last approved point without any lost progress.
+**Acceptance criterion:** if this sandbox is destroyed right now, cloning `origin` + reading this repository must restore exact project state and allow continuing from the last approved point without any lost progress.

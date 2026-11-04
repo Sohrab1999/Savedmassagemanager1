@@ -17,8 +17,8 @@
 
 ## 2. Network Constraints (verified 2026-11-04)
 
-- `github.com` — reachable (HTTPS 200)
-- `api.github.com` — **HTTP 403 (rate-limited)**. Any CLI that calls the GitHub API may hang/retry (observed with `npx skills add`; the files still download before the stall).
+- `github.com` — reachable (HTTPS 200); **git push/pull over HTTPS works** (verified 2026-11-04).
+- `api.github.com` — **HTTP 403 for anonymous calls** (rate-limited from this IP). **Authenticated calls with a valid token succeed (HTTP 200 — verified 2026-11-04)**. Any CLI that calls the GitHub API anonymously may hang/retry (observed with `npx skills add`; the files still download before the stall).
 - npm registry — reachable.
 
 ## 3. Project Command Surface
@@ -63,24 +63,35 @@ npx -y skills add pbakaus/impeccable -g -y
 ### Pre-installed platform skills (in-repo, survive clone)
 `skills/` at repo root already contains ASR, LLM, TTS, VLM, agent-browser, etc. These are part of the sandbox platform and tracked in git.
 
-## 5. Git / Remote State — CRITICAL LIMITATION
+## 5. Git / Remote State — EXTERNAL BACKUP ACTIVE (D13 resolved 2026-11-04)
 
-- The repository had **no remote** configured at session start (no GitHub/GitLab credentials, no `gh` CLI, no SSH keys, no tokens in env).
-- Best-available recovery implemented 2026-11-04: **bare mirror repository** at `/home/z/my-project-backup.git`, added as git remote `backup`.
-  - This mirror survives working-tree resets and project-directory loss **but lives on the same sandbox filesystem** — it does NOT survive total sandbox destruction.
-- **For true off-sandbox disaster recovery, the owner must provide a remote URL + credentials.** Then:
+- **`origin` (permanent external backup):** `https://github.com/Sohrab1999/Savedmassagemanager1` — **public** repository, default branch `main`. Configured 2026-11-04 by owner instruction (resolves decision D13). Repo was verified **empty** before the first push (nothing overwritten); full local history preserved and pushed.
+- **`backup` (secondary):** bare mirror `/home/z/my-project-backup.git` (same filesystem; kept as fast local redundancy).
+- **Push policy (Persistence Protocol step 6):** after every step, push `main` to **every** configured remote and prove parity: `git ls-remote origin` and `git ls-remote backup` must both equal `git rev-parse HEAD`.
+- **Authentication (no credentials in the repository):**
+  - No `gh` CLI in sandbox; git uses the built-in credential store: `credential.helper=store` → `~/.git-credentials` (**outside the repo, mode 0600**).
+  - The access token is **not recorded anywhere in this repository or its history** (verified by full-history scan on 2026-11-04). Never paste, store, or commit it in the repo; never embed it in remote URLs.
+  - **Security recommendation (owner):** the token was shared through chat during setup — rotate/revoke it after setup is confirmed and issue a fine-grained PAT limited to this repository with `Contents: Read/Write` only. Rotation: create the new PAT on GitHub, then overwrite the stored entry:
+    ```bash
+    printf 'protocol=https\nhost=github.com\nusername=x-access-token\npassword=NEW_TOKEN\n' | git credential approve
+    ```
+- **Recovery procedure (fresh environment, no sandbox):**
+  1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read requires no auth; push requires the stored credential).
+  2. Restore push credential via the rotation command above (or `git remote set-url origin <URL>` if cloning your own fork).
+  3. If a same-filesystem mirror is available: `git remote add backup /home/z/my-project-backup.git`.
+  4. Verify parity: `git rev-parse HEAD` == `git ls-remote origin refs/heads/main`.
+  5. Continue with `docs/SNAPSHOT.md` §10.
+- Acceptance criterion ("sandbox destroyed → clone remote + read docs = full recovery") is now **met for the repository itself** (code + docs + complete history). Non-repo artifacts (AI skills, runtime DB, dev server) remain documented in `docs/SNAPSHOT.md` §8.
+
+## 6. Git Hygiene Notes (updated 2026-11-04 — both actions DONE before first external push)
+
+- ✅ **DONE (commit `55c04e3`):** `.env` untracked (`git rm --cached`), `.gitignore` covers it (`.env*` pre-existing). `.env` contains only `DATABASE_URL=file:/home/z/my-project/db/custom.db` (local path, no secret). Recreate after fresh clone:
   ```bash
-  git remote add origin <URL>
-  git push -u origin main
-  git ls-remote origin   # verify SHA parity
+  printf 'DATABASE_URL=file:/home/z/my-project/db/custom.db\n' > .env
   ```
-- Until then, the acceptance criterion ("sandbox destroyed → clone remote") is **partially met, not fully met**. This is recorded honestly in `docs/SNAPSHOT.md`.
-
-## 6. Git Hygiene Notes (pre-existing scaffold state, do not silently change)
-
-- `.env` is tracked (contains only `DATABASE_URL` pointing at the local SQLite file). Before adding any public remote: `git rm --cached .env`, add to `.gitignore`, rotate value.
-- `db/custom.db` (scaffold SQLite binary) is tracked. Before public remote: untrack (`git rm --cached db/custom.db`) and gitignore `*.db`.
-- `.gitignore` ignores: `node_modules`, `.next`, `*.log`, `dev.log`, `.env*` (new files), `/skills/` is NOT ignored (tracked intentionally), `local-*`, `test`, `prompt`.
+- ✅ **DONE (same commit):** `db/custom.db` untracked; `.gitignore` now has `/db/` and `*.db`. Recreated by `bun run db:push`.
+- **Residual-history fact (documented, no rewrite):** commits before `55c04e3` still contain the old `.env` (benign local path) and the scaffold `db/custom.db` binary in history. Owner constraint: complete history is preserved — no history rewriting. Nothing sensitive is in history (full scan 2026-11-04: no PATs, API keys, private keys, AWS keys).
+- `.gitignore` ignores: `node_modules`, `.next`, `*.log`, `dev.log`, `.env*`, `/db/`, `*.db`, `local-*`, `test`, `prompt`.
 
 ## 7. Key File Paths
 
@@ -89,9 +100,9 @@ npx -y skills add pbakaus/impeccable -g -y
 | `src/app/page.tsx` | The only user-visible route (scaffold demo until development starts) |
 | `src/app/api/route.ts` | Scaffold demo API route |
 | `prisma/schema.prisma` | Scaffold demo models (User/Post) — to be replaced by PKM schema in Phase 2 |
-| `db/custom.db` | SQLite runtime DB (gitignored per hygiene note; currently tracked) |
+| `db/custom.db` | SQLite runtime DB (untracked since 2026-11-04; recreated by `bun run db:push`) |
 | `docs/SNAPSHOT.md` | Master recovery snapshot (update every step) |
-| `docs/PRODUCT_BRIEF.md` | Verbatim Brief v1.0 |
+| `docs/PRODUCT_BRIEF.md` | Product Brief (current: v1.2; v1.0 archived) |
 | `docs/PRODUCT_AUDIT_REPORT.md` | Full audit (C1–C8, M1–M10, AD1–AD12, D1–D12) |
 | `docs/DECISIONS.md` | Decision log (single source of decision truth) |
 | `docs/ROADMAP.md` | Phase plan with audit deltas |

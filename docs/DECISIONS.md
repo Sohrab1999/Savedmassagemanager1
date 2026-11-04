@@ -59,7 +59,7 @@ Applied to Product Brief v1.2 (`docs/PRODUCT_BRIEF.md`); exact deltas in `docs/C
 |----|----------|--------------------|-------------------|--------|
 | D17 | Dark-mode MVP scope (raised by owner instruction 3) | (a) retain Light/Dark in MVP (current brief text: §7-I, §10, DoD #11) · (b) demote dark mode to P1, light-only MVP | (a) retain — explicitly listed in the approved brief; foundations use theme-agnostic semantic tokens so (b) stays cheap if chosen later | **PENDING** — one-line ruling requested together with the Phase 0 checklist review |
 | A1–A8 | Labeled assumptions (Brief Appendix A) — **explicit individual review required; silence ≠ approval** (owner instruction 1) | see Brief §Appendix A | — | **UNRESOLVED** (required Phase 0 work item W7; each confirmed / vetoed / amended at Phase 0 exit) |
-| D13 | External git remote URL + credentials for off-sandbox disaster recovery | owner provides remote / accept same-fs mirror only | provide remote | **PENDING** (owner action; does not block product work) |
+| D13 | External git remote URL + credentials for off-sandbox disaster recovery | owner provides remote / accept same-fs mirror only | provide remote | ✅ **APPROVED & DONE 2026-11-04** — owner provided `https://github.com/Sohrab1999/Savedmassagemanager1` (public, was empty — nothing overwritten); configured as `origin`; complete history pushed; SHA parity verified. Credential stored outside the repo (`~/.git-credentials`, never committed); rotation recommended — see `docs/ENVIRONMENT.md` §5 |
 
 ---
 
