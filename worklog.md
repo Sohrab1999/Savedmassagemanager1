@@ -6,6 +6,18 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-04
 
+### Step 4 — Owner approved D1–D12; Product Brief v1.1 produced
+- **Trigger:** Owner reviewed the audit, approved its direction, and issued explicit rulings D1–D12 plus six mandatory clarifications (canonical Item entity; async non-blocking metadata fetch; frictionless capture; MVP focus; account deletion + export as MVP requirements; no new features).
+- **Actions:**
+  - Archived Brief v1.0 verbatim → `docs/PRODUCT_BRIEF_v1.0.md` (history preserved).
+  - Wrote **complete, internally consistent Product Brief v1.1** → `docs/PRODUCT_BRIEF.md`: all D1–D12 applied; canonical Item ingestion contract (§6); final Home/Inbox/All Items/Collections/Favorites/Trash definitions; P0 modules A–I incl. new Link-Metadata (async/SSRF) and Export (JSON+ZIP+HTML) modules; file/quota policy (25 MB / 500 MB); fa-default i18n; P1 re-ordered; expanded out-of-scope; data model v1.1; journeys J1–J6 incl. Export & Departure; metrics operationalized (organization = report-only); **DoD expanded to 16 criteria**.
+  - Added `docs/CHANGELOG.md` (exact v1.0→v1.1 deltas, 18 change groups).
+  - Updated `docs/DECISIONS.md`: D1–D12 ✅ APPROVED with owner wording; **new micro-gaps registered as D14 (email verification gating), D15 (URL normalization depth), D16 (quota edge behavior) — PENDING, not silently decided**; assumptions A1–A8 labeled in Brief Appendix A; E6 documented (v1.1 English working language).
+  - Updated `docs/SNAPSHOT.md` to v4 (state, decisions, git-state basis) and `docs/ROADMAP.md` (Phase 0 checklist: brief/decisions/IA/journeys/metrics ✅; kickoff gate = D14–D16 + A1–A8).
+- **Commits:** (1) v1.1 content commit → SHA in `git log` (message `docs: product brief v1.1 (D1-D12 applied) ...`); (2) state-recording commit (final HEAD).
+- **Verification evidence:** parity proven via `git ls-remote backup` vs `git rev-parse HEAD` at commit time (see commit messages + live commands in SNAPSHOT §9).
+- **State after step:** **No code written. No stack chosen.** Gate: awaiting owner approval of D14–D16 (+A1–A8) to start Phase 0.
+
 ### Step 3 — Persistence Protocol established; project state persisted to repository
 - **Trigger:** Owner's mandatory requirement — full durability against sandbox reset/destruction; SNAPSHOT.md after every step; commit + push with verifiable SHA parity.
 - **Actions:**
