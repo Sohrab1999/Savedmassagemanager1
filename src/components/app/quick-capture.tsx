@@ -128,6 +128,16 @@ export function QuickCapture() {
 
   const categories = categoriesQuery.data?.items ?? [];
 
+  // QE6 — causal reason shown on the disabled save button (title attr) and
+  // visibly under the title field, so a first save never ends in an error.
+  const saveDisabledReason = !form.title.trim()
+    ? t("capture.titleRequired")
+    : form.type === "text" && !form.content.trim()
+      ? t("capture.contentRequired")
+      : form.type === "link" && !/^https?:\/\/.+/i.test(form.url.trim())
+        ? t("capture.urlRequired")
+        : undefined;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
@@ -180,6 +190,9 @@ export function QuickCapture() {
               onChange={(event) => patch({ title: event.target.value })}
               placeholder={t("capture.titlePlaceholder")}
             />
+            <p className="text-[11px] text-muted-foreground" role="status">
+              {saveDisabledReason ?? t("capture.titleHint")}
+            </p>
           </div>
 
           {form.type === "link" ? (
@@ -270,7 +283,12 @@ export function QuickCapture() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={submit} disabled={createNote.isPending || !form.title.trim()}>
+          <Button
+            onClick={submit}
+            disabled={createNote.isPending || Boolean(saveDisabledReason)}
+            title={saveDisabledReason}
+            aria-disabled={createNote.isPending || Boolean(saveDisabledReason)}
+          >
             <Plus className="size-4" aria-hidden="true" />
             {t("capture.save")}
           </Button>

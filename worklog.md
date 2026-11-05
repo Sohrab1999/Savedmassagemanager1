@@ -6,6 +6,18 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 14 — QE6 DONE: error-preventing capture save flow (hint + causal disabled reason)
+- **Trigger:** Roadmap Phase 1 item QE6: "زیر عنوان، راهنمای الزام؛ دکمه ذخیره با `title` علّت غیرفعال بودن. DoD: کاربر تازه‌کار بدون خطا اولین آیتم را ثبت می‌کند (تست دستی)."
+- **Changes:** `src/components/app/quick-capture.tsx` — unified `saveDisabledReason` chain (missing title → missing text-content → missing/invalid link URL) driving (a) save button `disabled` + `aria-disabled`, (b) button `title` attr with the exact cause, (c) a visible dynamic hint `p[role=status]` under the title field; static upfront guide `capture.titleHint` shows when the form is valid. `src/lib/i18n/dictionaries.ts` — new key `capture.titleHint` (en "A title is required to save this item." / fa "برای ذخیرهٔ این مورد، نوشتن عنوان الزامی است.").
+- **DoD verification (agent-browser, fa — manual first-save journeys):**
+  - Empty form: save disabled, title attr "عنوان الزامی است", hint shows same — `roadmaps/evidence/qe6-capture-hint.png`.
+  - Text type + title only: still disabled, hint switches to "برای مورد متنی، نوشتن متن الزامی است" (error prevented BEFORE click — this closed a real gap found during testing: the original button stayed enabled and only errored after submit).
+  - Content filled: enabled → save → dialog closes, toast "مورد ذخیره شد" ✓.
+  - Link type + title, empty URL: disabled + "لینک معتبر الزامی است" ✓; URL filled → enabled → saved ✓ (`qe6-after-save.png`).
+  - Cleanup: 3 UI-created test notes deleted via API; library back to 21 visible items (verified via `/api/notes`).
+- **Lint:** clean. **SNAPSHOT:** v14. **State after step:** QE1–QE6 ✅; next QE7 (docs-only) + final Phase-1 pass.
+- **Commit:** `feat(qe6): prevent capture errors with causal save-button hint` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 13 — QE5 DONE: active-filters bar with live counter and clear-all
 - **Trigger:** Roadmap Phase 1 item QE5: "بالای نتایج، چیپ‌های فیلتر فعال + «پاک‌کردن همه» + شمارنده. DoD: با هر تغییر فیلتر، نوار همگام می‌شود؛ در حالت بدون فیلتر رندر نمی‌شود."
 - **Changes:** `src/components/app/views/library-view.tsx` — replaced the tag-only chips section with a full active-filters bar: `ActiveFilterChip` (Badge + X button, per-chip aria-label `a11y.removeFilter: {label}`), one chip per active dimension (search term in «», type via `TYPE_META.labelKey`, category or "بدون دسته", each tag, favorite, archived), live counter `library.activeFilters.count` (Persian digits, `ms-auto`), clear-all → `resetFilters`; bar hidden entirely when `hasActiveFilters` is false; role=group. `src/lib/i18n/dictionaries.ts` — new keys `library.activeFilters.count` (en "{n} active" / fa "{n} فعال") + `a11y.removeFilter` (en "Remove filter" / fa "حذف فیلتر").
