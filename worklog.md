@@ -6,6 +6,17 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 15 — QE7 DONE + PHASE 1 CLOSE-OUT: all Quick Wins complete and verified
+- **Trigger:** Roadmap Phase 1 final item QE7 ("لینک فراموشی گذرواژه → Backlog فاز Cloud-Go-Live") + owner mandate to close every step with the full persistence cycle.
+- **QE7 change (docs-only):** `docs/ROADMAP.md` — new section **"Cloud-Go-Live backlog (blocked on the real Firebase project)"** registering the password-reset link with its explicit blocker (Firebase Email provider + SMTP/template must be enabled in the real project) and source pointer to roadmap QE7. No code touched (honest to the item's scope).
+- **Close-out actions:**
+  1. `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` — **all 7 Phase-1 checkboxes ticked** with completion annotations + evidence paths; §9 protocol section updated with execution status (baseline precondition met via `e214a98`; `backup` recreated at phase start and pushed with proven parity at every step; origin push still blocked — all commits queued on `main` for the owner's single future push).
+  2. **Final full-app regression (agent-browser):** all 4 views render (dashboard/library/categories/settings) with **0 `[role=alert]` errors**; list view **21/21 rows carry dates** (QE1) and tag/category chips (QE4); mobile **@390: no page overflow, layout toggle in view** (QE2); `dev.log` free of errors/warnings; demo library restored to 21 visible items.
+  3. Lint clean (final run). SNAPSHOT v15 (gate, status, quality, git chain, remaining work all updated to Phase-1-complete state).
+- **Phase 1 final tally:** QE1 ✅ (list dates) · QE2 ✅ (always-visible sort/layout) · QE3 ✅ (clickable category cards + keyboard) · QE4 ✅ (tag chips + +N) · QE5 ✅ (active-filters bar) · QE6 ✅ (causal save hint/disable) · QE7 ✅ (Cloud-Go-Live backlog registration). No architecture changed. New i18n keys: `a11y.openCategory`, `library.activeFilters.count`, `a11y.removeFilter`, `capture.titleHint` (all fa+en, type-checked).
+- **State after step:** Phase 1 COMPLETE; awaiting owner sign-off for Phase 2 (S7 → S1 → S8 → S4 → S3). Pending owner: new PAT for `origin` push (all commits queued), D17, A1–A8.
+- **Commit:** `docs(qe7): register password-reset blocker + close out Phase 1 (checkboxes, final regression)` (live `git rev-parse HEAD`; backup parity proven below and in SNAPSHOT §9).
+
 ### Step 14 — QE6 DONE: error-preventing capture save flow (hint + causal disabled reason)
 - **Trigger:** Roadmap Phase 1 item QE6: "زیر عنوان، راهنمای الزام؛ دکمه ذخیره با `title` علّت غیرفعال بودن. DoD: کاربر تازه‌کار بدون خطا اولین آیتم را ثبت می‌کند (تست دستی)."
 - **Changes:** `src/components/app/quick-capture.tsx` — unified `saveDisabledReason` chain (missing title → missing text-content → missing/invalid link URL) driving (a) save button `disabled` + `aria-disabled`, (b) button `title` attr with the exact cause, (c) a visible dynamic hint `p[role=status]` under the title field; static upfront guide `capture.titleHint` shows when the form is valid. `src/lib/i18n/dictionaries.ts` — new key `capture.titleHint` (en "A title is required to save this item." / fa "برای ذخیرهٔ این مورد، نوشتن عنوان الزامی است.").

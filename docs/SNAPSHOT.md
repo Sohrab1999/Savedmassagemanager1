@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 14 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 15 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v9–v14 deltas:** QE1–QE6 implemented & verified (see §2/§7/§11); QE7 (docs-only) next.
+> **v15 status: ROADMAP PHASE 1 (QE1–QE7) COMPLETE** — all items implemented, DoD-verified, checkboxed in the roadmap file; final full-app browser regression clean (see §7/§11). Next: owner sign-off → Phase 2.
 
 ---
 
@@ -17,9 +17,9 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Phase 1 — Quick Wins (QE1–QE7) EXECUTION authorized by owner** (message 2026-11-05, in Persian: "فاز ۱ — Quick Wins … شروع کن"). Constraint: **no architecture changes** in this phase. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (owner mandate re-issued with acceptance criterion: sandbox-loss must be recoverable via clone + docs alone). |
-| Development status | **Full application implemented and running** (see §2). Phase 1 UI quick-wins in progress. |
-| Next allowed step | Execute QE1→QE7 in roadmap order; after each: verify in browser (RTL fa + LTR en, 1280px + 390px), update SNAPSHOT/worklog, commit, push remotes, prove parity. Phase 2 (S1/S7/S8/S4/S3) only after Phase 1 sign-off. |
+| **Current gate** | **Roadmap Phase 1 — Quick Wins COMPLETE (2026-11-05)**; awaiting owner sign-off before Phase 2 (S7/S1/S8/S4/S3 — data-foundation repairs). Constraint honored: Phase 1 changed NO architecture. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (owner mandate re-issued with acceptance criterion: sandbox-loss must be recoverable via clone + docs alone). |
+| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 1 COMPLETE.** |
+| Next allowed step | Owner sign-off on Phase 1 → Phase 2 in roadmap order (S7 read-consolidation first, then S1 server-side query/pagination, S8 batch, S4 editor UI, S3 URL filters). QE evidence: `roadmaps/evidence/qe*.png`. |
 
 ## 2. Implemented Capabilities
 
@@ -70,9 +70,9 @@
 ## 7. Tests & Quality Status
 
 - **Owner rule: no test code.** `scripts/rules-test.ts` (Firestore rules assertions, 39/39) and `scripts/e2e-verify.sh` (browser E2E, 15/15) are verification scripts from the Firebase phase, run on demand against the emulator.
-- **Lint:** `bun run lint` CLEAN at snapshot v8 baseline (re-run after each Phase-1 step; record here).
+- **Lint:** `bun run lint` CLEAN at snapshot v8 baseline AND after every Phase-1 step (QE1–QE7 + final close-out); last run at v15: clean.
 - **Type check:** app code tsc clean at Firebase-phase completion.
-- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **QE1 verified 2026-11-05: fa-RTL@1280 ✓, en-LTR@1280 ✓, en@320px no-overflow (scrollWidth check: page & row false) ✓.** **QE2 verified 2026-11-05: layout toggle bounding-box fully in viewport @1280 & @390, fa-RTL + en-LTR, pageOverflowX=false; before/after screenshots (`qe2-before-*.png`, `qe2-after-{fa,en}-{1280,390}.png`); interaction regression: list-toggle works, QE1 dates intact.** **QE3 verified 2026-11-05: card click → `#/library` with category filter applied (count label "۳ مورد"), ⋯ menu opens without navigation, keyboard focus+Enter navigates, cards exposed as accessible buttons.** **QE4 verified 2026-11-05: grid + list chips render (6/21 tagged demo notes), geometry-checked RTL anchoring (chips at inline-start, date at inline-end, no collision), +N overflow path verified by temporarily tagging a note 3× ("+۱" Persian digits) then `POST /api/seed` reseed (tags restored to 2).** **QE5 verified 2026-11-05: bar hidden with no filters ✓; with type+favorite → 2 chips + "۲ فعال" ✓ (`qe5-active-filters.png`); removing chip → counter "۱ فعال" ✓; clear-all → bar gone, count ۲۱ مورد ✓; a11y: role=group + per-chip `a11y.removeFilter` labels; new i18n keys `library.activeFilters.count` + `a11y.removeFilter` (fa+en).** **QE6 verified 2026-11-05: empty → disabled + title attr "عنوان الزامی است" + visible hint ✓; text+title-only → disabled + hint "برای مورد متنی، نوشتن متن الزامی است" ✓; content filled → enabled → toast "مورد ذخیره شد" ✓; link without URL → disabled + "لینک معتبر الزامی است" ✓; link+URL → saved ✓ (`qe6-capture-hint.png`, `qe6-after-save.png`); new i18n key `capture.titleHint` (fa+en).**
+- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **FINAL PHASE-1 REGRESSION (2026-11-05, clean):** all 4 views render (dashboard/library/categories/settings) with 0 `[role=alert]` errors; list view 21/21 rows carry dates; mobile @390 no page overflow + layout toggle in view; `dev.log` free of errors/warnings. Per-item evidence: QE1 fa-RTL@1280 ✓ + en-LTR@1280 ✓ + @320px no-overflow ✓; QE2 toggle in viewport @1280/@390 both languages + before/after shots ✓; QE3 card-click navigation + ⋯ isolation + keyboard ✓; QE4 chips grid+list + geometry + +۱ overflow ✓; QE5 hidden-by-default/sync/remove/clear-all ✓; QE6 causal disable for text & link first-save journeys ✓.
 
 ## 8. Limitations & Honesty Ledger (what this repo can NOT restore alone)
 
@@ -97,8 +97,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v14 | see `git rev-parse HEAD`; chain: `8f3b15f` → `951a6b6` → `e7f00a2` → `d66c2d9` (QE1) → `38196cd` (QE2) → `177a74c` (QE3) → `c6823ef` (QE4) → `c85e432` (QE5) → QE6 commit — 13+ commits ahead of frozen origin |
-| Phase-1 commits | QE1 ✅ · QE2 ✅ · QE3 ✅ · QE4 ✅ · QE5 ✅ · QE6 ✅ (QE7 docs-only + roadmap checkbox pass + final verification follow) |
+| Local HEAD at v15 | see `git rev-parse HEAD`; Phase-1 chain: `951a6b6` (step 8 baseline) → `d66c2d9` (QE1) → `38196cd` (QE2) → `177a74c` (QE3) → `c6823ef` (QE4) → `c85e432` (QE5) → `7917ebd` (QE6) → QE7/final docs commit — 14+ commits ahead of frozen origin |
+| Phase-1 commits | **QE1 ✅ QE2 ✅ QE3 ✅ QE4 ✅ QE5 ✅ QE6 ✅ QE7 ✅ — PHASE 1 COMPLETE** (each step = own commit, backup parity proven at commit time) |
 
 Authoritative live check:
 
@@ -134,13 +134,15 @@ git rev-parse HEAD && git status --short \
 13. **QE4 done (step 12):** `TagChips` added to `note-card.tsx` (shared by grid + list) — max 2 tag chips + `+N` (Persian digits via `formatNumber`), null-render when untagged (no layout shift); verified visually + geometrically (RTL anchoring) + `+۱` overflow path (temp 3-tag probe, demo data reseeded via `POST /api/seed`, tags restored); SNAPSHOT v12; lint clean; committed & backup parity proven.
 14. **QE5 done (step 13):** active-filters bar replaced the tag-only chip section — `ActiveFilterChip` component + bar with per-filter removable chips (q with «quotes», type, category/none, tags, favorite, archived), live counter (Persian digits), clear-all (`resetFilters`); hidden when no filters; new i18n keys `library.activeFilters.count`, `a11y.removeFilter` (fa+en); verified: hidden-by-default ✓, 2-chip + "۲ فعال" state ✓, single-chip removal → "۱ فعال" ✓, clear-all → hidden + ۲۱ مورد ✓ (`roadmaps/evidence/qe5-active-filters.png`); SNAPSHOT v13; lint clean; committed & backup parity proven.
 15. **QE6 done (step 14):** capture save flow made error-preventing — unified `saveDisabledReason` (title→text-content→link-URL) drives disabled state + causal `title` attr + visible dynamic hint (`role=status`) under title; static upfront hint `capture.titleHint` (fa+en) when valid; verified full first-save journeys for text and link types (button states at each stage + success toasts, `qe6-capture-hint.png`/`qe6-after-save.png`); 3 UI-created test notes deleted via API afterwards (demo library back to 21 visible items); SNAPSHOT v14; lint clean; committed & backup parity proven.
+16. **QE7 + PHASE 1 CLOSE-OUT done (step 15):** QE7 — password-reset link registered as a blocker in a new **“Cloud-Go-Live backlog”** section of `docs/ROADMAP.md` (execution only after the owner enables the Email provider in the real Firebase project); roadmap file `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` — all Phase-1 checkboxes ticked with completion annotations + §9 protocol section updated with execution status (backup recreated per-step parity; origin push still blocked, all commits queued); **final full-app regression** — all 4 views 0 errors, 21/21 list rows with dates, mobile 390px no overflow + toggle in view, dev.log clean; SNAPSHOT v15; lint clean; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 1 (active):** ~~QE1~~ ✅ · ~~QE2~~ ✅ · ~~QE3~~ ✅ · ~~QE4~~ ✅ · ~~QE5~~ ✅ · ~~QE6~~ ✅ → **QE7 password-reset backlog registration (docs-only, next)** → roadmap checkbox pass + final Phase-1 lint/browser pass + final persistence cycle.
+- **Phase 1: ✅ COMPLETE (all 7 items, DoD-verified).** Awaiting owner sign-off.
 - **Phase 2 (next, after sign-off):** S7 read-consolidation → S1 server-side query/pagination (kills 500-cap) → S8 batch/transaction → S4 title/content editor UI → S3 URL-persisted filters.
 - **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
-- Pending owner items: D17 ruling; A1–A8 review (Phase 0 W7); new PAT for `origin` push.
+- **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`).
+- Pending owner items: **new PAT for `origin` push (single biggest durability gap — all Phase-1 work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
 
 ---
 

@@ -89,6 +89,12 @@
 - [ ] Telegram Mini App
 - [ ] Cross-Platform Synchronization
 
+## Cloud-Go-Live backlog (blocked on the real Firebase project — QE7, registered 2026-11-05)
+
+Items that can only be executed once the owner activates the corresponding provider/feature in the real Firebase console (this sandbox has emulator-only config):
+
+- [ ] **Password-reset link on the auth gate** (blocker: Firebase **Email provider** must be enabled in the real project, and its SMTP/template configured) — source: `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` §5 Phase 1 QE7. Until then the auth gate intentionally offers no reset affordance; demo mode is unaffected.
+
 ## P1 fast-follow backlog (strategic order ⟵audit)
 
 1. PWA installability + Web Share Target
