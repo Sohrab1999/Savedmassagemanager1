@@ -60,6 +60,56 @@ const MAX_NOTES_FETCH = 500;
 const VALID_TYPES: NoteType[] = ["text", "link", "image", "video", "file"];
 
 // ---------------------------------------------------------------------------
+// S7 — Shared notes snapshot (read consolidation)
+//
+// `getStats` / `listCategories` / `listTags` / category note-counts all need
+// the user's notes. Previously EACH re-downloaded up to 500 docs, so one
+// dashboard mount cost up to 3 full reads. The session snapshot below keeps
+// ONE copy in memory (per module session) and every write invalidates it, so
+// any combination of these views downloads the notes collection at most once
+// per freshness window.
+// ---------------------------------------------------------------------------
+
+/** Cost guard for the shared snapshot; derived views stay honest because the
+ * list path (S1) stops depending on this fetch entirely. */
+const SNAPSHOT_MAX_NOTES = 500;
+const SNAPSHOT_TTL_MS = 60_000;
+
+interface NotesSnapshot {
+  data: NoteDTO[];
+  fetchedAt: number;
+}
+
+let notesSnapshot: NotesSnapshot | null = null;
+let snapshotInFlight: Promise<NoteDTO[]> | null = null;
+
+function invalidateNotesSnapshot(): void {
+  notesSnapshot = null;
+}
+
+async function getNotesSnapshot(): Promise<NoteDTO[]> {
+  if (notesSnapshot && Date.now() - notesSnapshot.fetchedAt < SNAPSHOT_TTL_MS) {
+    return notesSnapshot.data;
+  }
+  // Concurrent callers (e.g. getStats + listCategories on one dashboard mount)
+  // must share a single download, not race into two.
+  if (!snapshotInFlight) {
+    snapshotInFlight = (async () => {
+      const root = userRoot(requireUid());
+      const snapshot = await getDocs(
+        query(root.notes, orderBy("savedAt", "desc"), limit(SNAPSHOT_MAX_NOTES)),
+      );
+      const data = snapshot.docs.map((entry) => mapNote(entry.id, entry.data()));
+      notesSnapshot = { data, fetchedAt: Date.now() };
+      return data;
+    })().finally(() => {
+      snapshotInFlight = null;
+    });
+  }
+  return snapshotInFlight;
+}
+
+// ---------------------------------------------------------------------------
 // Verified-identity plumbing
 // ---------------------------------------------------------------------------
 
@@ -138,6 +188,8 @@ function mapCategory(
 // Shared fetchers / filters (Prisma-service parity)
 // ---------------------------------------------------------------------------
 
+/** Full read for the notes list (S1 will replace this path with a
+ * server-side paginated query). Kept for exact client-side semantics today. */
 async function fetchAllNotes(): Promise<NoteDTO[]> {
   const root = userRoot(requireUid());
   const snapshot = await getDocs(
@@ -275,6 +327,7 @@ export async function createNote(input: CreateNoteInput): Promise<NoteDTO> {
   };
 
   const created = await addDoc(root.notes, payload);
+  invalidateNotesSnapshot();
   return {
     id: created.id,
     type: payload.type,
@@ -334,6 +387,7 @@ export async function updateNote(id: string, input: UpdateNoteInput): Promise<No
   }
 
   await updateDoc(root.noteDoc(id), patch);
+  invalidateNotesSnapshot();
   return {
     ...existing,
     ...patch,
@@ -347,6 +401,7 @@ export async function deleteNote(id: string): Promise<{ ok: true }> {
   const snapshot = await getDoc(root.noteDoc(id));
   if (!snapshot.exists()) throw new NotFoundError("note");
   await deleteDoc(root.noteDoc(id));
+  invalidateNotesSnapshot();
   return { ok: true };
 }
 
@@ -366,7 +421,7 @@ export async function listCategories(): Promise<{ items: CategoryDTO[] }> {
   const root = userRoot(requireUid());
   const [categorySnap, notes] = await Promise.all([
     getDocs(query(root.categories, orderBy("order", "asc"), limit(200))),
-    fetchAllNotes(),
+    getNotesSnapshot(),
   ]);
 
   const counts = new Map<string, number>();
@@ -411,6 +466,7 @@ export async function createCategory(input: {
     createdAt: Date.now(),
   };
   const created = await addDoc(root.categories, payload);
+  invalidateNotesSnapshot();
   return mapCategory(created.id, payload, 0);
 }
 
@@ -448,9 +504,10 @@ export async function updateCategory(
     await Promise.all(
       owned.docs.map((entry) => updateDoc(entry.ref, { category: ref })),
     );
+    invalidateNotesSnapshot();
   }
 
-  const notes = await fetchAllNotes();
+  const notes = await getNotesSnapshot();
   const noteCount = notes.filter((note) => !note.isArchived && note.categoryId === id).length;
   return mapCategory(id, merged, noteCount);
 }
@@ -460,6 +517,7 @@ export async function deleteCategory(id: string): Promise<{ ok: true }> {
   const snapshot = await getDoc(root.categoryDoc(id));
   if (!snapshot.exists()) throw new NotFoundError("category");
   await deleteDoc(root.categoryDoc(id));
+  invalidateNotesSnapshot();
 
   // Fan-out: detach from notes (Prisma service keeps orphaned categoryId; the
   // Firestore model stores the ref inline, so it must be cleared explicitly).
@@ -482,7 +540,7 @@ export async function listTags(): Promise<{ items: TagDTO[] }> {
   const root = userRoot(requireUid());
   const [tagSnap, notes] = await Promise.all([
     getDocs(query(root.tags, orderBy("name", "asc"), limit(300))),
-    fetchAllNotes(),
+    getNotesSnapshot(),
   ]);
 
   const counts = new Map<string, number>();
@@ -511,6 +569,7 @@ export async function createTag(input: { name: string }): Promise<TagDTO> {
     return { id: hit.id, name: (hit.data() as unknown as TagDoc).name, noteCount: 0 };
   }
   const created = await addDoc(root.tags, { name, createdAt: Date.now() } satisfies TagDoc);
+  invalidateNotesSnapshot();
   return { id: created.id, name, noteCount: 0 };
 }
 
@@ -520,6 +579,7 @@ export async function deleteTag(id: string): Promise<{ ok: true }> {
   if (!snapshot.exists()) throw new NotFoundError("tag");
   const name = (snapshot.data() as unknown as TagDoc).name;
   await deleteDoc(root.tagDoc(id));
+  invalidateNotesSnapshot();
 
   // Fan-out: strip the reference from notes that still point at this tag.
   const owned = await getDocs(
@@ -536,7 +596,7 @@ export async function deleteTag(id: string): Promise<{ ok: true }> {
 // ---------------------------------------------------------------------------
 
 export async function getStats(): Promise<StatsDTO> {
-  const [notes, categoryResult] = await Promise.all([fetchAllNotes(), listCategories()]);
+  const [notes, categoryResult] = await Promise.all([getNotesSnapshot(), listCategories()]);
   const active = notes.filter((note) => !note.isArchived);
   const weekAgo = Date.now() - 7 * 86_400_000;
 

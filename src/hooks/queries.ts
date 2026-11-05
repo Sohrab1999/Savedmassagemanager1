@@ -104,6 +104,10 @@ export function useInvalidateNotes() {
     queryClient.invalidateQueries({ queryKey: ["notes"] });
     queryClient.invalidateQueries({ queryKey: ["note"] });
     queryClient.invalidateQueries({ queryKey: ["stats"] });
+    // S7: category/tag note-counts are derived from the same notes data, so
+    // any note mutation can change them (create with tags, archive, delete…).
+    queryClient.invalidateQueries({ queryKey: ["categories"] });
+    queryClient.invalidateQueries({ queryKey: ["tags"] });
   };
 }
 

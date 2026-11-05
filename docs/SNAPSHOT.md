@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 15 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 16 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v15 status: ROADMAP PHASE 1 (QE1–QE7) COMPLETE** — all items implemented, DoD-verified, checkboxed in the roadmap file; final full-app browser regression clean (see §7/§11). Next: owner sign-off → Phase 2.
+> **v16 status: PHASE 2 IN PROGRESS — S7 DONE.** Owner issued the Phase-2 order (data-foundation repairs) on 2026-11-05 (this doubles as Phase-1 sign-off). S7 (read consolidation) implemented, verified, committed. Next in roadmap dependency order: S8 → S1 → S4 → S3.
 
 ---
 
@@ -17,9 +17,9 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Roadmap Phase 1 — Quick Wins COMPLETE (2026-11-05)**; awaiting owner sign-off before Phase 2 (S7/S1/S8/S4/S3 — data-foundation repairs). Constraint honored: Phase 1 changed NO architecture. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (owner mandate re-issued with acceptance criterion: sandbox-loss must be recoverable via clone + docs alone). |
-| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 1 COMPLETE.** |
-| Next allowed step | Owner sign-off on Phase 1 → Phase 2 in roadmap order (S7 read-consolidation first, then S1 server-side query/pagination, S8 batch, S4 editor UI, S3 URL filters). QE evidence: `roadmaps/evidence/qe*.png`. |
+| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair IN PROGRESS (owner order 2026-11-05; S7 done).** Phase 1 (QE1–QE7) completed and signed off by the owner's Phase-2 instruction. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (owner mandate re-issued with the Phase-2 order). |
+| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 in progress (S7 done).** |
+| Next allowed step | Phase 2 remaining in dependency order: **S8** (writeBatch fan-out) → **S1** (server-side query + pagination, kills the 500 cap) → **S4** (title/content editor UI) → **S3** (URL-persisted filters). Phase-1 evidence: `roadmaps/evidence/qe*.png`; Phase-2 evidence: `roadmaps/evidence/s7-*.png` (S8/S1/S4/S3 to follow). |
 
 ## 2. Implemented Capabilities
 
@@ -35,6 +35,7 @@
 - **Note detail sheet** (`src/components/app/note-detail-sheet.tsx`): metadata, description editing (persisted), tag add/remove via datalist, favorite/archive/delete (confirm), open original, copy content.
 - **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; **QE1 (v9): list rows show snippet AND relative saved-date together (date pinned to row end, logical `ms-auto`); verified fa-RTL + en-LTR @1280px and no-overflow @320px (`roadmaps/evidence/qe1-after-*.png`).** **QE4 (v12): shared `TagChips` component renders up to 2 tag chips + Persian-digit `+N` overflow on grid cards (between snippet and meta row) and list rows (below snippet line); renders null when note has no tags (no layout shift); verified incl. +۱ path (`roadmaps/evidence/qe4-*.png`, demo data reseeded after the +N probe).**
 - **Dual-mode data source** (`src/services/data-source.ts`): authenticated → Firestore repository (`src/services/repository.ts`, per-UID `users/{uid}/…`); else → demo API over Prisma/SQLite (sample data, honestly labeled).
+- **S7 read consolidation (v16, Cloud repository):** session **notes snapshot** — `getNotesSnapshot()` (module memory, TTL 60 s, in-flight dedup, invalidated by every write) feeds `getStats`, `listCategories`, `listTags`, and `updateCategory` note-counts. Read accounting (Cloud, code-level): before = dashboard 2 full downloads / library mount 3; after = **≤ 1 per view combination per 60 s window**. Live Network-panel proof requires the frozen Firebase env (§8). `useInvalidateNotes` also invalidates `categories`/`tags` now (note mutations change their counts).
 - **Firebase integration (emulator-verified)**: `src/services/firebase.ts` (env-driven init, Auth :9099 / Firestore :8080 hooks), `firestore.rules` (owner-only writes, field validation, catch-all deny), `firestore.indexes.json`, `scripts/rules-test.ts` (**39/39 pass**), `scripts/e2e-verify.sh` (**15/15 browser E2E pass**).
 - **i18n/RTL**: type-safe flat dictionaries fa+en (`src/lib/i18n/dictionaries.ts` — fa is the default), `dir` synced to locale, Persian digits via formatters, Vazirmatn font.
 - **Platform compliance**: single user-visible route `/` (`src/app/page.tsx`); API routes under `src/app/api/**` (demo data source); sticky-footer layout rules; shadcn/ui New York components only.
@@ -43,7 +44,7 @@
 
 - **Framework:** Next.js 16 App Router + TypeScript 5 (non-negotiable). Only route: `/`. API routes (`src/app/api/**`), not server actions.
 - **Styling:** Tailwind CSS 4 + shadcn/ui; RTL-first; logical CSS properties (`ps/pe/ms/me/start/end`) mandatory; no indigo/blue unless owner asks; responsive mobile-first; sticky footer (`min-h-screen flex flex-col` + footer `mt-auto`).
-- **Data (dual-mode):** authenticated = Firestore per-UID; unauthenticated = Prisma/SQLite demo (`db/custom.db`, untracked; `bun run db:push`; `.env` `DATABASE_URL=file:/home/z/my-project/db/custom.db`). Demo API uses Prisma LIMIT/OFFSET; **Cloud mode caps reads at 500 docs via `fetchAllNotes` with client-side filtering — known limitation T1, fix scheduled in Phase 2 (S1), NOT in Phase 1**.
+- **Data (dual-mode):** authenticated = Firestore per-UID; unauthenticated = Prisma/SQLite demo (`db/custom.db`, untracked; `bun run db:push`; `.env` `DATABASE_URL=file:/home/z/my-project/db/custom.db`). Demo API uses Prisma LIMIT/OFFSET; **Cloud mode: `listNotes` still caps at 500 docs via `fetchAllNotes` with client-side filtering — limitation T1, being fixed by S1 (in progress, Phase 2)**. **S7 snapshot (`getNotesSnapshot`) caps at 500 as a cost guard (SNAPSHOT_MAX_NOTES) with 60 s TTL; list path will stop depending on full reads when S1 lands.**
 - **State:** Zustand (`src/stores/app-store.ts` — view/detailNoteId/captureOpen/filters) + TanStack Query (`src/hooks/queries.ts` — UID-scoped keys, dispatch through data-source).
 - **Firebase:** env-driven (`NEXT_PUBLIC_FIREBASE_*`); emulator flag `NEXT_PUBLIC_FIREBASE_EMULATOR=true`. UID always derived from verified Auth state inside repository, never from callers. **Never store credentials in the repo.**
 - **i18n:** add every new UI string to BOTH `en` and `fa` in `src/lib/i18n/dictionaries.ts` (type-checked parity); use `t()`; Persian digits via `formatNumber`/`formatDate`/`formatRelativeTime` (`src/lib/format.ts`).
@@ -97,8 +98,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v15 | see `git rev-parse HEAD`; Phase-1 chain: `951a6b6` (step 8 baseline) → `d66c2d9` (QE1) → `38196cd` (QE2) → `177a74c` (QE3) → `c6823ef` (QE4) → `c85e432` (QE5) → `7917ebd` (QE6) → QE7/final docs commit — 14+ commits ahead of frozen origin |
-| Phase-1 commits | **QE1 ✅ QE2 ✅ QE3 ✅ QE4 ✅ QE5 ✅ QE6 ✅ QE7 ✅ — PHASE 1 COMPLETE** (each step = own commit, backup parity proven at commit time) |
+| Local HEAD at v16 | see `git rev-parse HEAD`; chain: Phase 1 `951a6b6`→QE1 `d66c2d9`→QE2 `38196cd`→QE3 `177a74c`→QE4 `c6823ef`→QE5 `c85e432`→QE6 `7917ebd`→`803dfae` (QE7+close-out) → **S7 commit (see live rev-parse)** — 15+ commits ahead of frozen origin |
+| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: S7 ✅ — S8/S1/S4/S3 pending** (each step = own commit, backup parity proven at commit time) |
 
 Authoritative live check:
 
@@ -134,12 +135,12 @@ git rev-parse HEAD && git status --short \
 13. **QE4 done (step 12):** `TagChips` added to `note-card.tsx` (shared by grid + list) — max 2 tag chips + `+N` (Persian digits via `formatNumber`), null-render when untagged (no layout shift); verified visually + geometrically (RTL anchoring) + `+۱` overflow path (temp 3-tag probe, demo data reseeded via `POST /api/seed`, tags restored); SNAPSHOT v12; lint clean; committed & backup parity proven.
 14. **QE5 done (step 13):** active-filters bar replaced the tag-only chip section — `ActiveFilterChip` component + bar with per-filter removable chips (q with «quotes», type, category/none, tags, favorite, archived), live counter (Persian digits), clear-all (`resetFilters`); hidden when no filters; new i18n keys `library.activeFilters.count`, `a11y.removeFilter` (fa+en); verified: hidden-by-default ✓, 2-chip + "۲ فعال" state ✓, single-chip removal → "۱ فعال" ✓, clear-all → hidden + ۲۱ مورد ✓ (`roadmaps/evidence/qe5-active-filters.png`); SNAPSHOT v13; lint clean; committed & backup parity proven.
 15. **QE6 done (step 14):** capture save flow made error-preventing — unified `saveDisabledReason` (title→text-content→link-URL) drives disabled state + causal `title` attr + visible dynamic hint (`role=status`) under title; static upfront hint `capture.titleHint` (fa+en) when valid; verified full first-save journeys for text and link types (button states at each stage + success toasts, `qe6-capture-hint.png`/`qe6-after-save.png`); 3 UI-created test notes deleted via API afterwards (demo library back to 21 visible items); SNAPSHOT v14; lint clean; committed & backup parity proven.
-16. **QE7 + PHASE 1 CLOSE-OUT done (step 15):** QE7 — password-reset link registered as a blocker in a new **“Cloud-Go-Live backlog”** section of `docs/ROADMAP.md` (execution only after the owner enables the Email provider in the real Firebase project); roadmap file `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` — all Phase-1 checkboxes ticked with completion annotations + §9 protocol section updated with execution status (backup recreated per-step parity; origin push still blocked, all commits queued); **final full-app regression** — all 4 views 0 errors, 21/21 list rows with dates, mobile 390px no overflow + toggle in view, dev.log clean; SNAPSHOT v15; lint clean; committed & backup parity proven.
+16. **QE7 + PHASE 1 CLOSE-OUT done (step 15):** QE7 — password-reset link registered as a blocker in a new **“Cloud-Go-Live backlog”** section of `docs/ROADMAP.md` (execution only after the owner enables the Email provider in the real Firebase project); roadmap file — all Phase-1 checkboxes ticked with completion annotations + §9 protocol section updated (backup recreated per-step parity; origin push still blocked, all commits queued); **final full-app regression** — all 4 views 0 errors, 21/21 list rows with dates, mobile 390px no overflow + toggle in view, dev.log clean; SNAPSHOT v15; lint clean; committed & backup parity proven.
+17. **Phase 2 opened + S7 done (step 16, owner order):** persistence debt cleared first (`backup` mirror rebuilt + parity `803dfae`; mode-flip noise restored); S7 — `getNotesSnapshot()` shared session snapshot (TTL 60 s + in-flight dedup + write-invalidation) now feeds `getStats`/`listCategories`/`listTags`/updateCategory-noteCount (read accounting: library mount 3→1 downloads, dashboard 2→1); `useInvalidateNotes` extended to categories/tags; live demo regression clean (dashboard/categories/library, `s7-*.png`); SNAPSHOT v16; lint clean; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 1: ✅ COMPLETE (all 7 items, DoD-verified).** Awaiting owner sign-off.
-- **Phase 2 (next, after sign-off):** S7 read-consolidation → S1 server-side query/pagination (kills 500-cap) → S8 batch/transaction → S4 title/content editor UI → S3 URL-persisted filters.
+- **Phase 2 (in progress):** S7 ✅ → **S8** (writeBatch/runTransaction for category/tag fan-out; rules-test green) → **S1** (server-side query + pagination, remove 500 cap, 600-item scenario) → **S4** (title/content editor UI, persist after refresh) → **S3** (filters in URL hash: deep-link + refresh + back/forward).
 - **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
 - **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`).
 - Pending owner items: **new PAT for `origin` push (single biggest durability gap — all Phase-1 work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).

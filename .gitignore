@@ -55,3 +55,4 @@ server.log
 # local database (SQLite runtime; recreated via `bun run db:push`)
 /db/
 *.db
+tool-results/

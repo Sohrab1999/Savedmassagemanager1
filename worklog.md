@@ -6,6 +6,23 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 16 — PHASE 2 OPENED (owner order) + S7 DONE: read consolidation via shared notes snapshot
+- **Trigger:** Owner instruction (Persian, 2026-11-05): "فاز ۲ — تعمیر بنیان داده — پیش‌نیاز هر مقیاس‌پذیری — ادامه بده" + the standing 10-point persistence mandate re-issued. This message doubles as the Phase-1 sign-off that Step 15 was waiting for.
+- **Pre-step persistence debt (platform rollback side-effects):**
+  1. `backup` bare mirror **destroyed AGAIN** (`/home/z/my-project-backup.git` missing) → rebuilt (`git init --bare`) → `git push backup main` → parity proven: local `803dfae` == backup `803dfae`.
+  2. Working-tree noise: file-mode flips (644→755) on `roadmaps/**` + `dev.pid` content change → restored via `git checkout --` (net diff at phase open: zero content changes).
+  3. Live dev server confirmed (HTTP 200, fa RTL).
+- **S7 change (`src/services/repository.ts`):**
+  - New **session notes snapshot**: `getNotesSnapshot()` — one full notes download kept in module memory, **TTL 60 s**, **in-flight dedup** (concurrent `getStats` + `listCategories` share ONE fetch instead of racing into two), **invalidated by every write** (create/update/delete note, category CRUD fan-out, tag create/delete).
+  - `listCategories`, `listTags`, `getStats`, `updateCategory`(noteCount) now feed from the snapshot instead of each calling `fetchAllNotes()`. `fetchAllNotes` remains ONLY in `listNotes` (S1 will replace that path).
+- **S7 change (`src/hooks/queries.ts`):** `useInvalidateNotes` now also invalidates `categories` + `tags` — note mutations can change their note-counts (create-with-tags, archive, delete). Correctness fix for both modes.
+- **DoD accounting (Cloud, code-level — live Network panel needs the frozen Firebase env, honestly recorded):**
+  - Before: dashboard = **2** full downloads (getStats = fetchAllNotes + listCategories→fetchAllNotes); library mount = **3** (listNotes + listCategories + listTags); every write-heavy action re-downloaded again.
+  - After: any view combination = **≤ 1** shared download per 60 s window (TTL + dedup + write-invalidation).
+- **Live regression (demo mode, agent-browser @1280):** dashboard (31 items, favorites/archived/thisWeek, category tiles, type bars) + categories view + library (31 مورد, QE1 dates, QE4 tags, QE2 toolbar) all render correctly → `roadmaps/evidence/s7-dashboard-fa-1280.png`, `s7-categories-fa-1280.png`, `s7-library-fa-1280.png`.
+- **Lint:** clean. **SNAPSHOT:** v16. **Next:** S8 (writeBatch fan-out) then S1 (server-side query + pagination).
+- **Commit:** `perf(s7): consolidate stats/categories/tags reads into one shared notes snapshot` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 15 — QE7 DONE + PHASE 1 CLOSE-OUT: all Quick Wins complete and verified
 - **Trigger:** Roadmap Phase 1 final item QE7 ("لینک فراموشی گذرواژه → Backlog فاز Cloud-Go-Live") + owner mandate to close every step with the full persistence cycle.
 - **QE7 change (docs-only):** `docs/ROADMAP.md` — new section **"Cloud-Go-Live backlog (blocked on the real Firebase project)"** registering the password-reset link with its explicit blocker (Firebase Email provider + SMTP/template must be enabled in the real project) and source pointer to roadmap QE7. No code touched (honest to the item's scope).
