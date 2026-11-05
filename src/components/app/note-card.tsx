@@ -149,9 +149,14 @@ export function NoteCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium">{note.title}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {snippet ?? formatRelativeTime(note.savedAt, locale)}
-          </p>
+          <div className="flex items-center gap-2">
+            {snippet ? (
+              <p className="min-w-0 truncate text-xs text-muted-foreground">{snippet}</p>
+            ) : null}
+            <span className="ms-auto shrink-0 text-[10px] text-muted-foreground">
+              {formatRelativeTime(note.savedAt, locale)}
+            </span>
+          </div>
         </div>
         <FavoriteToggle note={note} />
       </div>
