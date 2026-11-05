@@ -87,6 +87,26 @@ export function LibraryView() {
   const isDefaultFilters =
     !hasActiveFilters && filters.sort === "newest";
 
+  // QE5 — active-filter count (sort/layout are preferences, not filters).
+  const activeFilterCount =
+    (filters.q ? 1 : 0) +
+    (filters.type !== "all" ? 1 : 0) +
+    (filters.categoryId !== "all" ? 1 : 0) +
+    filters.tagIds.length +
+    (filters.favorite ? 1 : 0) +
+    (filters.archived ? 1 : 0);
+
+  const activeCategory =
+    filters.categoryId === "all"
+      ? null
+      : categories.find((category) => category.id === filters.categoryId);
+  const activeCategoryLabel =
+    filters.categoryId === "none"
+      ? t("common.none")
+      : activeCategory
+        ? localizedCategoryName(activeCategory, locale)
+        : filters.categoryId;
+
   const renderBody = () => {
     if (notesQuery.isLoading && !notesQuery.data) {
       return filters.layout === "grid" ? <GridSkeleton /> : <ListSkeleton rows={7} />;
@@ -353,34 +373,63 @@ export function LibraryView() {
         </div>
       </div>
 
-      {/* Selected tag chips */}
-      {filters.tagIds.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* Active filters bar (QE5): one removable chip per active filter,
+          a live counter and clear-all; hidden entirely when nothing is set. */}
+      {hasActiveFilters ? (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("library.activeFilters.count", { n: formatNumber(activeFilterCount, locale) })}>
+          {filters.q ? (
+            <ActiveFilterChip
+              label={`«${filters.q}»`}
+              onRemove={() => {
+                setSearchInput("");
+                setFilters({ q: "" });
+              }}
+            />
+          ) : null}
+          {filters.type !== "all" ? (
+            <ActiveFilterChip
+              label={t(TYPE_META[filters.type].labelKey)}
+              onRemove={() => setFilters({ type: "all" })}
+            />
+          ) : null}
+          {filters.categoryId !== "all" ? (
+            <ActiveFilterChip
+              label={activeCategoryLabel}
+              onRemove={() => setFilters({ categoryId: "all" })}
+            />
+          ) : null}
           {filters.tagIds.map((tagId) => {
             const tag = tags.find((item) => item.id === tagId);
             return (
-              <Badge
+              <ActiveFilterChip
                 key={tagId}
-                variant="secondary"
-                className="gap-1 rounded-full ps-2.5 pe-1"
-              >
-                {tag?.name ?? tagId}
-                <button
-                  type="button"
-                  aria-label={t("common.delete")}
-                  onClick={() => toggleTag(tagId)}
-                  className="flex size-4 items-center justify-center rounded-full hover:bg-background/60"
-                >
-                  <X className="size-3" aria-hidden="true" />
-                </button>
-              </Badge>
+                label={tag?.name ?? tagId}
+                onRemove={() => toggleTag(tagId)}
+              />
             );
           })}
+          {filters.favorite ? (
+            <ActiveFilterChip
+              label={t("library.filters.favorite")}
+              onRemove={() => setFilters({ favorite: false })}
+            />
+          ) : null}
+          {filters.archived ? (
+            <ActiveFilterChip
+              label={t("library.filters.archived")}
+              onRemove={() => setFilters({ archived: false })}
+            />
+          ) : null}
+          <span className="ms-auto shrink-0 text-[11px] text-muted-foreground">
+            {t("library.activeFilters.count", {
+              n: formatNumber(activeFilterCount, locale),
+            })}
+          </span>
           <Button
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs text-muted-foreground"
-            onClick={() => setFilters({ tagIds: [] })}
+            onClick={resetFilters}
           >
             {t("common.clearAll")}
           </Button>
@@ -418,5 +467,29 @@ function FilterChip({
       {icon}
       {label}
     </button>
+  );
+}
+
+/** QE5 — one removable chip per active filter. */
+function ActiveFilterChip({
+  label,
+  onRemove,
+}: {
+  label: string;
+  onRemove: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <Badge variant="secondary" className="gap-1 rounded-full ps-2.5 pe-1">
+      <span className="max-w-40 truncate">{label}</span>
+      <button
+        type="button"
+        aria-label={`${t("a11y.removeFilter")}: ${label}`}
+        onClick={onRemove}
+        className="flex size-4 items-center justify-center rounded-full hover:bg-background/60"
+      >
+        <X className="size-3" aria-hidden="true" />
+      </button>
+    </Badge>
   );
 }

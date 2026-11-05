@@ -70,6 +70,7 @@ export const en = {
   "library.filters.archived": "Archived",
   "library.noResults.title": "No matching items",
   "library.noResults.desc": "Try different keywords or clear some filters.",
+  "library.activeFilters.count": "{n} active",
   "library.empty.title": "Nothing saved yet",
   "library.empty.desc": "Use quick capture to add your first item.",
   "library.clearFilters": "Clear filters",
@@ -185,6 +186,7 @@ export const en = {
   "a11y.mainNav": "Main navigation",
   "a11y.openNote": "Open item",
   "a11y.openCategory": "Show items in this category",
+  "a11y.removeFilter": "Remove filter",
   "a11y.favoriteToggle": "Toggle favorite",
   "a11y.accountMenu": "Account menu",
 
@@ -290,6 +292,7 @@ export const fa: Record<I18nKey, string> = {
   "library.filters.archived": "بایگانی",
   "library.noResults.title": "موردی یافت نشد",
   "library.noResults.desc": "کلیدواژهٔ دیگری امتحان کنید یا فیلترها را کم کنید.",
+  "library.activeFilters.count": "{n} فعال",
   "library.empty.title": "هنوز چیزی ذخیره نشده",
   "library.empty.desc": "با ثبت سریع، اولین مورد خود را اضافه کنید.",
   "library.clearFilters": "پاک کردن فیلترها",
@@ -405,6 +408,7 @@ export const fa: Record<I18nKey, string> = {
   "a11y.mainNav": "ناوبری اصلی",
   "a11y.openNote": "باز کردن مورد",
   "a11y.openCategory": "نمایش موارد این دسته",
+  "a11y.removeFilter": "حذف فیلتر",
   "a11y.favoriteToggle": "تغییر وضعیت علاقه‌مندی",
   "a11y.accountMenu": "منوی حساب",
 

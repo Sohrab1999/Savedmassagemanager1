@@ -6,6 +6,13 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 13 — QE5 DONE: active-filters bar with live counter and clear-all
+- **Trigger:** Roadmap Phase 1 item QE5: "بالای نتایج، چیپ‌های فیلتر فعال + «پاک‌کردن همه» + شمارنده. DoD: با هر تغییر فیلتر، نوار همگام می‌شود؛ در حالت بدون فیلتر رندر نمی‌شود."
+- **Changes:** `src/components/app/views/library-view.tsx` — replaced the tag-only chips section with a full active-filters bar: `ActiveFilterChip` (Badge + X button, per-chip aria-label `a11y.removeFilter: {label}`), one chip per active dimension (search term in «», type via `TYPE_META.labelKey`, category or "بدون دسته", each tag, favorite, archived), live counter `library.activeFilters.count` (Persian digits, `ms-auto`), clear-all → `resetFilters`; bar hidden entirely when `hasActiveFilters` is false; role=group. `src/lib/i18n/dictionaries.ts` — new keys `library.activeFilters.count` (en "{n} active" / fa "{n} فعال") + `a11y.removeFilter` (en "Remove filter" / fa "حذف فیلتر").
+- **DoD verification (agent-browser, fa):** hidden with no filters ✓ → apply type=لینک + علاقه‌مندی → bar with 2 chips + "۲ فعال" ✓ (`roadmaps/evidence/qe5-active-filters.png`) → click X on لینک chip (aria-label "حذف فیلتر: لینک") → 1 chip + "۱ فعال" ✓ → "پاک کردن فیلترها" → bar gone, total back to "۲۱ مورد" ✓. Search-chip removal also clears the search input state. (Note: an intermediate eval that appeared to show "duplicate chips" was a naive selector artifact — Badge renders as outer span[data-slot=badge] + inner label span; the screenshot proves exactly one chip per filter.)
+- **Lint:** clean. **SNAPSHOT:** v13. **State after step:** QE1–QE5 ✅; next QE6.
+- **Commit:** `feat(qe5): active filters bar with removable chips, live counter and clear-all` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 12 — QE4 DONE: tags visible on cards (grid + list, +N overflow, zero shift)
 - **Trigger:** Roadmap Phase 1 item QE4: "نمایش حداکثر ۲ تگ (+N) در پایین کارت گرید و انتهای ردیف لیست. DoD: کارت بدون تگ، سطر اضافه نمی‌گیرد (no layout shift)."
 - **Change (1 file):** `src/components/app/note-card.tsx` — new shared `TagChips` component (max 2 chips + `+N` with Persian digits via `formatNumber`); rendered on grid cards between snippet and meta row, and on list rows below the snippet line (`compact` variant); returns `null` for untagged notes → zero layout shift.
