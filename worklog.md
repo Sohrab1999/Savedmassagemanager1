@@ -6,6 +6,22 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 20 — S3 DONE: library filters live in the URL hash (deep-link + refresh + back/forward)
+- **Trigger:** Roadmap Phase 2 item S3 (F5): "فیلترها در URL ذخیره نمی‌شوند؛ Refresh = از دست رفتن جست‌وجو/فیلتر".
+- **Changes (`src/stores/app-store.ts`):**
+  - Hash format `#/library?q=…&type=…&cat=…&tags=a,b&fav=1&arch=1&sort=…` — only non-default values serialized; `layout` stays a device preference.
+  - `parseHash` (validated: unknown type/sort ignored, tags split/trimmed, UTF-8 q) + `libraryHash` builder.
+  - `setFilters` syncs the hash via **replaceState** (refinements, not navigations — the debounced search never floods history) and only while view=library; `setView('library')` pushes the hash WITH active filters (QE3 category-card flow now lands on `#/library?cat=…`); `resetFilters` also cleans the hash; `bindHashNavigation` restores view+filters from the hash after hydration and on every popstate/hashchange (back/forward restores filters).
+- **DoD verification (agent-browser, live):**
+  1. Link + Favorites chips → `#/library?type=link&fav=1`, counter 2 items.
+  2. **Refresh** → hash intact, 2 items, active chips rendered (`s3-refresh-preserved-en-1280.png`).
+  3. **Deep-link**: fresh full navigation to the same URL → identical 2 results.
+  4. **Back/forward**: → dashboard (`#/`) → back → filtered library with 2 items restored from hash → forward → `#/`.
+  5. QE3 flow: category card → `#/library?cat=<id>` (3 items); + search → `#/library?q=rstourani&cat=…`.
+  6. fa/RTL: Persian query → `#/library?q=قورمه&…` (URLSearchParams UTF-8 encode/decode correct), Persian-digit counter (`s3-fa-hash-1280.png`).
+- **Lint:** clean. **SNAPSHOT:** v20. **Phase 2 code items COMPLETE (S7/S8/S1/S4/S3).**
+- **Commit:** `feat(s3): persist library filters in the URL hash (deep-link + refresh + history)` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 19 — S4 DONE: title/content editing in the detail sheet (verified in both modes)
 - **Trigger:** Roadmap Phase 2 item S4 (finding F3 + hidden-capability gap): connect the existing `updateNote` title/content support to the UI.
 - **Changes (`src/components/app/note-detail-sheet.tsx` + i18n):**

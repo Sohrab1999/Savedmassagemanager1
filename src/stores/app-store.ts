@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { NoteSort, NoteType } from "@/lib/domain/types";
+import { NOTE_TYPES, type NoteSort, type NoteType } from "@/lib/domain/types";
 
 export type AppView = "dashboard" | "library" | "categories" | "settings";
 
@@ -33,12 +33,78 @@ const VALID_VIEWS: AppView[] = [
   "categories",
   "settings",
 ];
+const VALID_SORTS: NoteSort[] = ["newest", "oldest", "title"];
 
-function viewFromHash(): AppView {
-  if (typeof window === "undefined") return "dashboard";
-  const raw = window.location.hash.replace(/^#\/?/, "").split("?")[0];
+function viewFromPath(raw: string): AppView {
   return VALID_VIEWS.includes(raw as AppView) ? (raw as AppView) : "dashboard";
 }
+
+// ---------------------------------------------------------------------------
+// S3 — filters in the URL hash (#/library?q=…&type=…&cat=…&tags=…&fav=1&arch=1&sort=…)
+//
+// • Only non-default values are serialized (short, readable deep-links).
+// • `layout` stays a device preference and is never serialized.
+// • Filter changes use history.replaceState (they are refinements of the
+//   current view, not navigations — this also keeps the debounced search from
+//   flooding the history stack). View changes keep pushState, so browser
+//   back/forward remains view-level and always works.
+// • Malformed values are ignored (defaults apply) — the hash is untrusted input.
+// ---------------------------------------------------------------------------
+
+interface HashRoute {
+  view: AppView;
+  filters: LibraryFiltersState;
+}
+
+function parseHash(hash: string): HashRoute {
+  const raw = hash.replace(/^#\/?/, "");
+  const [path, query = ""] = raw.split("?");
+  const view = viewFromPath(path);
+  const filters: LibraryFiltersState = { ...defaultLibraryFilters };
+  if (view === "library" && query) {
+    const params = new URLSearchParams(query);
+    const q = params.get("q");
+    if (q !== null) filters.q = q;
+    const type = params.get("type");
+    if (type && (NOTE_TYPES as readonly string[]).includes(type)) {
+      filters.type = type as NoteType;
+    }
+    const cat = params.get("cat");
+    if (cat) filters.categoryId = cat; // 'none' or an id ('all' is omitted)
+    const tags = params.get("tags");
+    if (tags) {
+      filters.tagIds = tags.split(",").map((id) => id.trim()).filter(Boolean);
+    }
+    if (params.get("fav") === "1") filters.favorite = true;
+    if (params.get("arch") === "1") filters.archived = true;
+    const sort = params.get("sort");
+    if (sort && (VALID_SORTS as string[]).includes(sort)) {
+      filters.sort = sort as NoteSort;
+    }
+  }
+  return { view, filters };
+}
+
+function libraryHash(filters: LibraryFiltersState): string {
+  const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
+  if (filters.type !== "all") params.set("type", filters.type);
+  if (filters.categoryId !== "all") params.set("cat", filters.categoryId);
+  if (filters.tagIds.length) params.set("tags", filters.tagIds.join(","));
+  if (filters.favorite) params.set("fav", "1");
+  if (filters.archived) params.set("arch", "1");
+  if (filters.sort !== "newest") params.set("sort", filters.sort);
+  const qs = params.toString();
+  return qs ? `#/library?${qs}` : "#/library";
+}
+
+function replaceHash(hash: string): void {
+  if (typeof window === "undefined") return;
+  if (window.location.hash !== hash) {
+    window.history.replaceState(null, "", hash);
+  }
+}
+
 interface AppState {
   view: AppView;
   detailNoteId: string | null;
@@ -52,7 +118,7 @@ interface AppState {
   resetFilters: () => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   // Deterministic initial view for SSR + first client render; the hash is
   // synced after hydration (bindHashNavigation) to avoid hydration mismatch.
   view: "dashboard",
@@ -62,7 +128,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   setView: (view) => {
     if (typeof window !== "undefined") {
-      const hash = view === "dashboard" ? "#/" : `#/${view}`;
+      // Deep-linkable library hash carries the active filters (S3).
+      const hash = view === "library" ? libraryHash(get().filters) : view === "dashboard" ? "#/" : `#/${view}`;
       if (window.location.hash !== hash) {
         window.history.pushState(null, "", hash);
       }
@@ -74,18 +141,31 @@ export const useAppStore = create<AppState>((set) => ({
   closeNote: () => set({ detailNoteId: null }),
   setCaptureOpen: (open) => set({ captureOpen: open }),
 
-  setFilters: (patch) =>
-    set((state) => ({ filters: { ...state.filters, ...patch } })),
-  resetFilters: () => set({ filters: { ...defaultLibraryFilters } }),
+  setFilters: (patch) => {
+    set((state) => ({ filters: { ...state.filters, ...patch } }));
+    if (get().view === "library") {
+      replaceHash(libraryHash(get().filters));
+    }
+  },
+
+  resetFilters: () => {
+    set({ filters: { ...defaultLibraryFilters } });
+    if (get().view === "library") {
+      replaceHash("#/library");
+    }
+  },
 }));
 
-/** Re-sync store view when the user navigates with browser back/forward. */
+/** Re-sync store view + filters when the user navigates with browser
+ * back/forward, opens a deep-link, or refreshes. */
 export function bindHashNavigation(): () => void {
   if (typeof window === "undefined") return () => undefined;
   // Align with the URL after hydration (external-store update, no React setState).
-  useAppStore.setState({ view: viewFromHash() });
+  const initial = parseHash(window.location.hash);
+  useAppStore.setState({ view: initial.view, filters: initial.filters });
   const onHashChange = () => {
-    useAppStore.setState({ view: viewFromHash() });
+    const next = parseHash(window.location.hash);
+    useAppStore.setState({ view: next.view, filters: next.filters });
   };
   window.addEventListener("hashchange", onHashChange);
   window.addEventListener("popstate", onHashChange);

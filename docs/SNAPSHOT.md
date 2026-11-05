@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 19 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 20 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v19 status: PHASE 2 IN PROGRESS — S7 ✅ S8 ✅ S1 ✅ S4 ✅.** Last remaining Phase-2 item: S3 (filters in URL).
+> **v20 status: PHASE 2 CODE COMPLETE — S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅ (all five DoD-verified).** Remaining: Phase-2 close-out (final regression + docs).
 
 ---
 
@@ -17,9 +17,9 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair IN PROGRESS (owner order 2026-11-05; S7 + S8 + S1 + S4 done).** Phase 1 (QE1–QE7) completed and signed off. After each step: full SNAPSHOT update + commit + push + SHA-parity proof. |
-| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 in progress (4 of 5 items done).** |
-| Next allowed step | **S3 — filters in URL hash** (the last Phase-2 item), then the Phase-2 close-out (final regression + docs). Evidence: `roadmaps/evidence/qe*.png`, `s7-*.png`, `s1-*.png`, `s4-*.png` (S8 was emulator-probe-based). |
+| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair: ALL 5 CODE ITEMS DONE (S7+S8+S1+S4+S3, each DoD-verified).** Phase 1 signed off. After each step: full SNAPSHOT update + commit + push + SHA-parity proof. |
+| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 code complete — close-out pending.** |
+| Next allowed step | **Phase-2 close-out**: final full-app regression (4 views × fa/en, 1280/390/320) → docs close → then owner decides Phase 3 (G1 realtime+offline / S5 undo / S2 capture unification). Evidence: `roadmaps/evidence/qe*.png`, `s7-*.png`, `s1-*.png`, `s3-*.png`, `s4-*.png` (S8 was emulator-probe-based). |
 
 ## 2. Implemented Capabilities
 
@@ -28,7 +28,7 @@
 - **Auth gate** (`src/components/app/auth-gate.tsx` + `src/hooks/use-auth.tsx`): email/password sign-in & sign-up, honest "continue in demo mode" entry, emulator badge, not-configured fallback (this deployment has no real Firebase env → cloud sign-in explicitly declared unavailable; demo mode offered).
 - **Four-view IA with hash navigation** (`#/dashboard`, `#/library`, `#/categories`, `#/settings`; deterministic SSR view, hash re-synced post-hydration — `src/stores/app-store.ts`):
   - **Dashboard**: greeting, quick-capture banner, 4 stat cards, category tiles (click → filter library), type distribution bars, recent items.
-  - **Library**: search (300 ms debounce), filter toolbar (**QE2 (v10): split into scrollable chip zone + always-visible stable segment** holding sort & grid/list toggle — reachable without horizontal scroll @1280px & @390px, RTL+LTR verified), type/favorite/archived/category/tags filters, **QE5 (v13): active-filters bar** above results — one removable chip per active filter (q/type/category/tags/favorite/archived) + live Persian-digit counter + clear-all; hidden entirely when nothing is set; type-aware note cards, loading/empty/no-results/error states.
+  - **Library**: search (300 ms debounce), filter toolbar (**QE2 (v10)**), type/favorite/archived/category/tags filters, **QE5 (v13): active-filters bar**, type-aware note cards, loading/empty/no-results/error states, **S1 (v18): paginated results — 30/page + «نمایش بیشتر / Load more ({n} remaining)»**; **S3 (v20): filters in the URL hash** `#/library?q=…&type=…&cat=…&tags=…&fav=1&arch=1&sort=…` — deep-link in a fresh navigation yields identical results, refresh preserves filters, back/forward restores them (replaceState for filter refinements, pushState for view changes; malformed values ignored; QE3 flow lands on `#/library?cat=…`; layout stays device-local).
   - **Categories**: category CRUD dialog (name/nameFa/icon/color) + tags tab (create/filter/delete); **QE3 (v11): category cards are clickable** (`setFilters({categoryId}) + setView('library')`, same affordance as dashboard tiles), keyboard-accessible (role=button + Enter/Space), ⋯ menu isolated via stopPropagation; new i18n keys `a11y.openCategory` (fa+en).
   - **Settings**: profile, theme, language, JSON export, demo-data reset (demo-mode only, honestly scoped), environment/about.
 - **Quick capture dialog** (`src/components/app/quick-capture.tsx`): 5 content types (text/link/image/video/file), title/content/url/mediaUrl, category, comma-separated tags (fa+en comma); **QE6 (v14): error-prevention save flow** — unified `saveDisabledReason` (title / text-content / link-URL) drives the save button's disabled state + `title` attr + a visible dynamic hint (`role=status`) under the title field; static `capture.titleHint` when form valid; verified end-to-end for text & link types (3 test saves via UI, then deleted via API — demo data restored to 21 visible items).
@@ -101,8 +101,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v19 | see `git rev-parse HEAD`; chain: Phase 1 `…`→`803dfae` → S7 `6273298` → S8 `4bf21a2` → S1 `5f9d004` → **S4 commit (see live rev-parse)** — 18+ commits ahead of frozen origin |
-| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: S7 ✅ S8 ✅ S1 ✅ S4 ✅ — S3 pending** (each step = own commit, backup parity proven at commit time) |
+| Local HEAD at v20 | see `git rev-parse HEAD`; chain: Phase 1 `…`→`803dfae` → S7 `6273298` → S8 `4bf21a2` → S1 `5f9d004` → S4 `6f392d2` → **S3 commit (see live rev-parse)** — 19+ commits ahead of frozen origin |
+| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅ — close-out pending** (each step = own commit, backup parity proven at commit time) |
 
 Authoritative live check:
 
@@ -142,11 +142,12 @@ git rev-parse HEAD && git status --short \
 17. **Phase 2 opened + S7 done (step 16, owner order):** persistence debt cleared first (`backup` mirror rebuilt + parity `803dfae`; mode-flip noise restored); S7 — `getNotesSnapshot()` shared session snapshot (TTL 60 s + in-flight dedup + write-invalidation) now feeds `getStats`/`listCategories`/`listTags`/updateCategory-noteCount (read accounting: library mount 3→1 downloads, dashboard 2→1); `useInvalidateNotes` extended to categories/tags; live demo regression clean (dashboard/categories/library, `s7-*.png`); SNAPSHOT v16; lint clean; committed `6273298` & backup parity proven.
 18. **S8 done (step 17, emulator-verified):** all three fan-outs → chunked `writeBatch` (`batchedUpdate`, 500 ops/chunk); `resolveTagRefs` → one `in` query + batch tag creation (`batchedCreateTags`); live probes on the Firebase Emulator: 60-note category rename = 1 batch commit 60/60 updated 0 stale, tag resolve + tag-delete PASS; `rules-test.ts` 39/39 green; demo regression clean; SNAPSHOT v17; lint clean; committed `4bf21a2` & backup parity proven.
 19. **S1 done (step 18, the phase's core):** paginated notes (30/page) in both modes; `fetchAllNotes` + 500-cap deleted; cloud structured path (where/orderBy/startAfter + `getCountFromServer`) + snapshot path for q/tags; `useInfiniteQuery` + Load-more UI; title-sort divergence (cloud DESC vs demo ASC) found & fixed; `placeholderData` removed (duplicate-key fix); verified demo @623 + **cloud @601 live on emulator** (full matrix); rules 39/39; 11 composite indexes declared; demo seed restored; SNAPSHOT v18; lint clean; committed `5f9d004` & backup parity proven.
-20. **S4 done (step 19):** title/content editor in the detail sheet (pencil → Input+Textarea, causal disabled save, cancel restores; read-only preview hidden while editing); `note.detail.changesSaved` key; side-fix: filter reset no longer resurrects the search query (debounce resurrection bug); persistence verified after reload in cloud-emulator AND demo modes; demo seed restored; SNAPSHOT v19; lint clean; committed & backup parity proven.
+20. **S4 done (step 19):** title/content editor in the detail sheet (pencil → Input+Textarea, causal disabled save, cancel restores; read-only preview hidden while editing); `note.detail.changesSaved` key; side-fix: filter reset no longer resurrects the search query (debounce resurrection bug); persistence verified after reload in cloud-emulator AND demo modes; demo seed restored; SNAPSHOT v19; lint clean; committed `6f392d2` & backup parity proven.
+21. **S3 done (step 20):** library filters serialized in the URL hash (`#/library?q&type&cat&tags&fav&arch&sort`, non-defaults only, validated parse); replaceState for refinements (no history spam from search debounce) + pushState for view entries (QE3 flow carries `cat`); bindHashNavigation restores view+filters after hydration and on popstate/hashchange; verified: refresh preservation, fresh deep-link navigation = identical results, back/forward restore, Persian UTF-8 q, fa/en; `s3-refresh-preserved-en-1280.png`, `s3-fa-hash-1280.png`; SNAPSHOT v20; lint clean; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 2 (in progress):** S7 ✅ S8 ✅ S1 ✅ S4 ✅ → **S3** (filters in URL hash: deep-link + refresh + back/forward) → Phase-2 close-out.
+- **Phase 2: code items ALL DONE (S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅) → close-out (final full-app regression + docs).**
 - **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
 - **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`).
 - Pending owner items: **new PAT for `origin` push (single biggest durability gap — all Phase-1 work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
