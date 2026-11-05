@@ -6,6 +6,13 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 21 — PHASE 2 CLOSE-OUT: all five items done, final regression clean
+- **Phase-2 final tally:** S7 ✅ (read consolidation: any view combo ≤ 1 full notes download per 60 s window) · S8 ✅ (writeBatch fan-outs + one-query tag resolve; 60-note rename = 1 batch, rules 39/39) · S1 ✅ (server-side pagination 30/page in both modes; 500 cap deleted; verified demo@623 + cloud@601 on the emulator; title-sort divergence fixed) · S4 ✅ (title/content editor; persists after reload in both modes; filter-reset resurrection bug fixed) · S3 ✅ (filters in the URL hash; deep-link/refresh/back-forward verified incl. Persian q).
+- **Final full-app regression (agent-browser, demo mode):** dashboard (stats render, 0 alerts, no overflow) · library LIST view 21/21 rows with relative dates (QE1 intact) · categories 8 cards 0 alerts (QE3 intact) · settings renders · mobile @390: no overflow, 21 items (`final-regression-390-fa.png`) · console 0 errors · `dev.log` clean. Lint clean.
+- **State after Phase 2:** data foundation repaired — no silent truncation anywhere (North-Star Silent-Loss = 0 on both paths), exact demo↔cloud filter/sort semantics, batched fan-outs, URL-recoverable filter state. Remaining phases (3–5) await the owner's order; G1 (realtime+offline) is the recommended next phase per roadmap §8.
+- **Standing blocker (unchanged):** `origin` (GitHub) push still requires the owner's new PAT; every commit is queued on `main` and mirrored to `backup` with proven parity per step.
+- **Commit:** `docs(phase2): close out data-foundation phase — final regression + ledger` (live `git rev-parse HEAD`; backup parity proven below and in SNAPSHOT §9).
+
 ### Step 20 — S3 DONE: library filters live in the URL hash (deep-link + refresh + back/forward)
 - **Trigger:** Roadmap Phase 2 item S3 (F5): "فیلترها در URL ذخیره نمی‌شوند؛ Refresh = از دست رفتن جست‌وجو/فیلتر".
 - **Changes (`src/stores/app-store.ts`):**

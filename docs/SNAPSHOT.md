@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 20 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 21 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v20 status: PHASE 2 CODE COMPLETE — S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅ (all five DoD-verified).** Remaining: Phase-2 close-out (final regression + docs).
+> **v21 status: ROADMAP PHASE 2 (Data Foundation Repair) COMPLETE — S7/S8/S1/S4/S3 all implemented, DoD-verified (S8+S1 live on the Firebase Emulator), final full-app regression clean.** Next: owner decides Phase 3 (G1 realtime+offline recommended per roadmap §8).
 
 ---
 
@@ -17,9 +17,9 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair: ALL 5 CODE ITEMS DONE (S7+S8+S1+S4+S3, each DoD-verified).** Phase 1 signed off. After each step: full SNAPSHOT update + commit + push + SHA-parity proof. |
-| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 code complete — close-out pending.** |
-| Next allowed step | **Phase-2 close-out**: final full-app regression (4 views × fa/en, 1280/390/320) → docs close → then owner decides Phase 3 (G1 realtime+offline / S5 undo / S2 capture unification). Evidence: `roadmaps/evidence/qe*.png`, `s7-*.png`, `s1-*.png`, `s3-*.png`, `s4-*.png` (S8 was emulator-probe-based). |
+| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair COMPLETE (2026-11-05; owner order executed in full).** All 5 items DoD-verified; final regression clean. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (standing owner mandate). |
+| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 COMPLETE.** |
+| Next allowed step | Await owner's order for **Phase 3** (G1 realtime+offline — recommended per roadmap §8; then S5 undo-delete, S2 capture unification). Evidence: `roadmaps/evidence/qe*.png` (P1), `s7/s1/s3/s4/final-regression-*.png` (P2); S8 was emulator-probe-based (probes gitignored by design). |
 
 ## 2. Implemented Capabilities
 
@@ -101,8 +101,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v20 | see `git rev-parse HEAD`; chain: Phase 1 `…`→`803dfae` → S7 `6273298` → S8 `4bf21a2` → S1 `5f9d004` → S4 `6f392d2` → **S3 commit (see live rev-parse)** — 19+ commits ahead of frozen origin |
-| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅ — close-out pending** (each step = own commit, backup parity proven at commit time) |
+| Local HEAD at v21 | see `git rev-parse HEAD`; chain: Phase 1 `…`→`803dfae` → S7 `6273298` → S8 `4bf21a2` → S1 `5f9d004` → S4 `6f392d2` → S3 `49ccb44` → **close-out commit (see live rev-parse)** — 20+ commits ahead of frozen origin |
+| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: ✅ COMPLETE (S7/S8/S1/S4/S3 + close-out).** Phase 3 awaiting owner order |
 
 Authoritative live check:
 
@@ -143,14 +143,16 @@ git rev-parse HEAD && git status --short \
 18. **S8 done (step 17, emulator-verified):** all three fan-outs → chunked `writeBatch` (`batchedUpdate`, 500 ops/chunk); `resolveTagRefs` → one `in` query + batch tag creation (`batchedCreateTags`); live probes on the Firebase Emulator: 60-note category rename = 1 batch commit 60/60 updated 0 stale, tag resolve + tag-delete PASS; `rules-test.ts` 39/39 green; demo regression clean; SNAPSHOT v17; lint clean; committed `4bf21a2` & backup parity proven.
 19. **S1 done (step 18, the phase's core):** paginated notes (30/page) in both modes; `fetchAllNotes` + 500-cap deleted; cloud structured path (where/orderBy/startAfter + `getCountFromServer`) + snapshot path for q/tags; `useInfiniteQuery` + Load-more UI; title-sort divergence (cloud DESC vs demo ASC) found & fixed; `placeholderData` removed (duplicate-key fix); verified demo @623 + **cloud @601 live on emulator** (full matrix); rules 39/39; 11 composite indexes declared; demo seed restored; SNAPSHOT v18; lint clean; committed `5f9d004` & backup parity proven.
 20. **S4 done (step 19):** title/content editor in the detail sheet (pencil → Input+Textarea, causal disabled save, cancel restores; read-only preview hidden while editing); `note.detail.changesSaved` key; side-fix: filter reset no longer resurrects the search query (debounce resurrection bug); persistence verified after reload in cloud-emulator AND demo modes; demo seed restored; SNAPSHOT v19; lint clean; committed `6f392d2` & backup parity proven.
-21. **S3 done (step 20):** library filters serialized in the URL hash (`#/library?q&type&cat&tags&fav&arch&sort`, non-defaults only, validated parse); replaceState for refinements (no history spam from search debounce) + pushState for view entries (QE3 flow carries `cat`); bindHashNavigation restores view+filters after hydration and on popstate/hashchange; verified: refresh preservation, fresh deep-link navigation = identical results, back/forward restore, Persian UTF-8 q, fa/en; `s3-refresh-preserved-en-1280.png`, `s3-fa-hash-1280.png`; SNAPSHOT v20; lint clean; committed & backup parity proven.
+21. **S3 done (step 20):** library filters serialized in the URL hash (`#/library?q&type&cat&tags&fav&arch&sort`, non-defaults only, validated parse); replaceState for refinements (no history spam from search debounce) + pushState for view entries (QE3 flow carries `cat`); bindHashNavigation restores view+filters after hydration and on popstate/hashchange; verified: refresh preservation, fresh deep-link navigation = identical results, back/forward restore, Persian UTF-8 q, fa/en; `s3-refresh-preserved-en-1280.png`, `s3-fa-hash-1280.png`; SNAPSHOT v20; lint clean; committed `49ccb44` & backup parity proven.
+22. **PHASE 2 CLOSE-OUT (step 21):** final full-app regression — dashboard/library(list 21/21 dated rows)/categories(8 cards)/settings @1280 fa, mobile @390 no overflow (`final-regression-390-fa.png`), console 0 errors, dev.log clean; lint clean; roadmap §9 execution summary + SNAPSHOT v21; committed & backup parity proven. **Phase 2 complete — awaiting owner's Phase-3 order (G1 recommended).**
 
 ## 12. Remaining Work
 
-- **Phase 2: code items ALL DONE (S7 ✅ S8 ✅ S1 ✅ S4 ✅ S3 ✅) → close-out (final full-app regression + docs).**
-- **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
-- **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`).
-- Pending owner items: **new PAT for `origin` push (single biggest durability gap — all Phase-1 work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
+- **Phase 2: ✅ COMPLETE (all 5 items, DoD-verified, regression clean).** Awaiting owner sign-off for Phase 3.
+- **Phase 3 (next, on owner order):** G1 realtime+offline (onSnapshot + IndexedDB; roadmap §8 calls it the #2 indispensable change) → S5 undo-delete → S2 capture unification.
+- **Phases 4–5:** S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
+- **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`); composite-index completion in production follows the console's one-click suggestions (`firestore.indexes.json` has the 11 declared).
+- Pending owner items: **new PAT for `origin` push (single biggest durability gap — ALL work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
 
 ---
 
