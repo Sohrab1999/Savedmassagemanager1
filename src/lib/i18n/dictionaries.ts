@@ -122,6 +122,7 @@ export const en = {
   "note.detail.openOriginal": "Open original",
   "note.detail.copyContent": "Copy content",
   "note.detail.deleted": "Item deleted",
+  "note.detail.changesSaved": "Changes saved",
 
   "capture.title": "Quick capture",
   "capture.typeLabel": "Type",
@@ -346,6 +347,7 @@ export const fa: Record<I18nKey, string> = {
   "note.detail.openOriginal": "باز کردن اصل مطلب",
   "note.detail.copyContent": "کپی متن",
   "note.detail.deleted": "مورد حذف شد",
+  "note.detail.changesSaved": "تغییرات ذخیره شد",
 
   "capture.title": "ثبت سریع",
   "capture.typeLabel": "نوع",

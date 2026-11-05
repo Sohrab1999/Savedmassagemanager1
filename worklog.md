@@ -6,6 +6,20 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 19 — S4 DONE: title/content editing in the detail sheet (verified in both modes)
+- **Trigger:** Roadmap Phase 2 item S4 (finding F3 + hidden-capability gap): connect the existing `updateNote` title/content support to the UI.
+- **Changes (`src/components/app/note-detail-sheet.tsx` + i18n):**
+  - Pencil button in the sheet header → edit mode: title `Input` (maxLength 200; save disabled when empty with causal `title` = `capture.titleRequired`, same error-prevention pattern as QE6) + content `Textarea` (shown for `type==="text"` or notes with existing content); Save (`common.save`) / Cancel (restores original values; also an X icon-button cancels).
+  - The read-only text preview is hidden while editing a text note (no duplicate content surfaces).
+  - i18n: new `note.detail.changesSaved` (fa "تغییرات ذخیره شد" / en "Changes saved"); reuses existing `common.edit/save/cancel`.
+- **Side-fix (found while verifying):** `resetFilters` left `searchInput` intact and the 300 ms debounce immediately resurrected the cleared `q` — "Clear filters" appeared broken whenever a search was active. New `handleResetFilters` clears both (applied to the no-results empty state + the active-filters clear-all button).
+- **DoD verification (agent-browser):**
+  - **Cloud (emulator session):** Edit → title + content typed → Save → toast "Changes saved" → hard reload → search "S4" → card + sheet show both edited values → `roadmaps/evidence/s4-persisted-cloud.png` (+ `s4-edit-mode-fa.png` for the editor UI).
+  - **Demo:** first card → Edit → title changed → Save → toast → reload → card + sheet show «عنوان ویرایش‌شده دمو» → `s4-persisted-demo.png`; demo seed restored afterwards via `POST /api/seed` (21 visible items, original titles).
+- **Rules:** title/content updates are the exact shape `scripts/rules-test.ts` validates ("Alice updates own note") — 39/39 green this session.
+- **Lint:** clean. **SNAPSHOT:** v19. **Next:** S3 (filters in URL) — the last Phase-2 item.
+- **Commit:** `feat(s4): title/content editing in note detail sheet + filter-reset fix` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 18 — S1 DONE: server-side query + pagination in BOTH modes (emulator + demo verified at 600 items)
 - **Trigger:** Roadmap Phase 2 item S1 (T1/F2 — the phase's core): kill the 500 cap, server-side query, 30-item pages.
 - **Contract (`src/lib/domain/types.ts`):** `NoteListResponse` + `nextCursor: string | null`; `NoteFilters` + `pageToken`/`pageSize`.

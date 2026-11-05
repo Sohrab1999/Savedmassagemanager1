@@ -10,6 +10,7 @@ import {
   File as FileIcon,
   Link2,
   MessageSquareQuote,
+  Pencil,
   Plus,
   Star,
   Trash2,
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator as SeparatorUi } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
 import { useNote, useCategories, useTags, useUpdateNote, useDeleteNote } from "@/hooks/queries";
 import { dataSource } from "@/services/data-source";
@@ -187,14 +189,21 @@ export function NoteDetailSheet() {
   const [descriptionDirty, setDescriptionDirty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [tagInput, setTagInput] = useState(false);
+  // S4 — title/content editor state (edit → save/cancel in the sheet).
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
 
-  // Reset the description form whenever a different note is opened
+  // Reset the description/edit forms whenever a different note is opened
   // (render-phase state adjustment, per React docs).
   const [lastNoteId, setLastNoteId] = useState<string | null>(null);
   if (note && note.id !== lastNoteId) {
     setLastNoteId(note.id);
     setDescription(note.description ?? "");
     setDescriptionDirty(false);
+    setEditing(false);
+    setEditTitle(note.title);
+    setEditContent(note.content ?? "");
   }
 
   const selectedTagIds = useMemo(
@@ -253,6 +262,26 @@ export function NoteDetailSheet() {
     }
   };
 
+  // S4 — save the edited title (and content for text-bearing notes).
+  const canEditContent = note?.type === "text" || note?.content !== null;
+  const saveEdit = async () => {
+    if (!note) return;
+    const title = editTitle.trim();
+    if (!title) return;
+    const patch: Parameters<typeof updateNote.mutateAsync>[0]["patch"] = {
+      title,
+    };
+    if (canEditContent) {
+      const content = editContent.trim();
+      patch.content = content || null;
+    }
+    const ok = await patchNote(patch);
+    if (ok) {
+      setEditing(false);
+      toast.success(t("note.detail.changesSaved"));
+    }
+  };
+
   const isLoadingSheet = detailNoteId !== null && noteQuery.isLoading;
 
   return (
@@ -300,6 +329,37 @@ export function NoteDetailSheet() {
                       aria-hidden="true"
                     />
                   </Button>
+              {editing ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9"
+                  aria-label={t("common.cancel")}
+                  title={t("common.cancel")}
+                  onClick={() => {
+                    setEditing(false);
+                    setEditTitle(note.title);
+                    setEditContent(note.content ?? "");
+                  }}
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9"
+                  aria-label={t("common.edit")}
+                  title={t("common.edit")}
+                  onClick={() => {
+                    setEditTitle(note.title);
+                    setEditContent(note.content ?? "");
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+              )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -316,10 +376,60 @@ export function NoteDetailSheet() {
                   </Button>
                 </span>
               </div>
-              <h2 className="text-base font-bold leading-7">{note.title}</h2>
+              {editing ? (
+                <div className="space-y-2">
+                  <Input
+                    value={editTitle}
+                    onChange={(event) => setEditTitle(event.target.value)}
+                    aria-label={t("capture.titleLabel")}
+                    placeholder={t("capture.titlePlaceholder")}
+                    autoFocus
+                    maxLength={200}
+                  />
+                  {canEditContent ? (
+                    <Textarea
+                      value={editContent}
+                      onChange={(event) => setEditContent(event.target.value)}
+                      aria-label={t("capture.contentLabel")}
+                      placeholder={t("capture.contentPlaceholder")}
+                      rows={5}
+                    />
+                  ) : null}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="h-8"
+                      disabled={!editTitle.trim()}
+                      title={!editTitle.trim() ? t("capture.titleRequired") : undefined}
+                      onClick={saveEdit}
+                    >
+                      <Check className="size-4" aria-hidden="true" />
+                      {t("common.save")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      onClick={() => {
+                        setEditing(false);
+                        setEditTitle(note.title);
+                        setEditContent(note.content ?? "");
+                      }}
+                    >
+                      {t("common.cancel")}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <h2 className="text-base font-bold leading-7">{note.title}</h2>
+              )}
             </div>
 
-            <MediaPreview noteId={note.id} />
+            {/* While editing a text note, the content is in the editor above —
+                hiding the read-only duplicate. */}
+            {!(editing && note.type === "text") ? (
+              <MediaPreview noteId={note.id} />
+            ) : null}
 
             {/* Meta rows */}
             <div className="space-y-2 rounded-xl border p-3 text-xs">

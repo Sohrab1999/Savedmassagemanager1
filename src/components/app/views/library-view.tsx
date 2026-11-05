@@ -62,6 +62,13 @@ export function LibraryView() {
     return () => clearTimeout(timer);
   }, [searchInput, filters.q, setFilters]);
 
+  // S4-verification fix: resetFilters alone leaves `searchInput` behind, and
+  // the debounce above immediately resurrects the cleared q. Clear both.
+  const handleResetFilters = useCallback(() => {
+    setSearchInput("");
+    resetFilters();
+  }, [resetFilters]);
+
   const hasActiveFilters =
     filters.q !== "" ||
     filters.type !== "all" ||
@@ -141,7 +148,7 @@ export function LibraryView() {
           title={t("library.noResults.title")}
           description={t("library.noResults.desc")}
           action={
-            <Button variant="outline" size="sm" onClick={resetFilters}>
+            <Button variant="outline" size="sm" onClick={handleResetFilters}>
               {t("library.clearFilters")}
             </Button>
           }
@@ -434,7 +441,7 @@ export function LibraryView() {
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs text-muted-foreground"
-            onClick={resetFilters}
+            onClick={handleResetFilters}
           >
             {t("common.clearAll")}
           </Button>
