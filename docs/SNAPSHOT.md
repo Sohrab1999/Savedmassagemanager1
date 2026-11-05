@@ -2,8 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 8 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 9 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
+> **v9 delta:** QE1 implemented & verified (see §2/§7/§11).
 
 ---
 
@@ -32,6 +33,7 @@
   - **Settings**: profile, theme, language, JSON export, demo-data reset (demo-mode only, honestly scoped), environment/about.
 - **Quick capture dialog** (`src/components/app/quick-capture.tsx`): 5 content types (text/link/image/video/file), title/content/url/mediaUrl, category, comma-separated tags (fa+en comma).
 - **Note detail sheet** (`src/components/app/note-detail-sheet.tsx`): metadata, description editing (persisted), tag add/remove via datalist, favorite/archive/delete (confirm), open original, copy content.
+- **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; **QE1 (v9): list rows now show snippet AND relative saved-date together (date pinned to row end, logical `ms-auto`); verified fa-RTL + en-LTR @1280px and no-overflow @320px (`roadmaps/evidence/qe1-after-*.png`).**
 - **Dual-mode data source** (`src/services/data-source.ts`): authenticated → Firestore repository (`src/services/repository.ts`, per-UID `users/{uid}/…`); else → demo API over Prisma/SQLite (sample data, honestly labeled).
 - **Firebase integration (emulator-verified)**: `src/services/firebase.ts` (env-driven init, Auth :9099 / Firestore :8080 hooks), `firestore.rules` (owner-only writes, field validation, catch-all deny), `firestore.indexes.json`, `scripts/rules-test.ts` (**39/39 pass**), `scripts/e2e-verify.sh` (**15/15 browser E2E pass**).
 - **i18n/RTL**: type-safe flat dictionaries fa+en (`src/lib/i18n/dictionaries.ts` — fa is the default), `dir` synced to locale, Persian digits via formatters, Vazirmatn font.
@@ -70,7 +72,7 @@
 - **Owner rule: no test code.** `scripts/rules-test.ts` (Firestore rules assertions, 39/39) and `scripts/e2e-verify.sh` (browser E2E, 15/15) are verification scripts from the Firebase phase, run on demand against the emulator.
 - **Lint:** `bun run lint` CLEAN at snapshot v8 baseline (re-run after each Phase-1 step; record here).
 - **Type check:** app code tsc clean at Firebase-phase completion.
-- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`.
+- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **QE1 verified 2026-11-05: fa-RTL@1280 ✓, en-LTR@1280 ✓, en@320px no-overflow (scrollWidth check: page & row false) ✓.**
 
 ## 8. Limitations & Honesty Ledger (what this repo can NOT restore alone)
 
@@ -95,8 +97,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v8 | `8f3b15f` (7 commits ahead of origin: `9e623df` docs-reverify, `375b889` checkpoint, `be5caad` **full app**, `90c6295` checkpoint, `e214a98` **Firebase integration**, `776923b` checkpoint, `8f3b15f` checkpoint) |
-| Phase-1 commits | appended below as steps complete (each step = own commit, backup parity proven) |
+| Local HEAD at v9 | see `git rev-parse HEAD`; chain: `8f3b15f` → `951a6b6` (step 8 baseline) → QE1 commit (step 9) — 8+ commits ahead of frozen origin |
+| Phase-1 commits | QE1 ✅ (QE2–QE7 follow; each step = own commit, backup parity proven) |
 
 Authoritative live check:
 
@@ -125,11 +127,12 @@ git rev-parse HEAD && git status --short \
 6. **Full application build** (`be5caad`): Savedbox — 4-view IA, capture/library/detail/categories/settings, fa-default i18n/RTL, dual-mode demo API.
 7. **Firebase Auth + Firestore integration** (`e214a98`): per-UID repository, rules 39/39, browser E2E 15/15 (emulator-verified), honest config status.
 8. **Feature X deep analysis** (2026-11-05): 12 live screenshots + full code re-read → `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` (11-section analyst template, phases 1–5, scoring, Keep/Change/Remove).
-9. **Phase 1 Quick Wins started** (owner mandate 2026-11-05): baseline evidence captured (`roadmaps/evidence/qe2-before-*.png` @1280/390px — confirms filter-bar overflow findings); `backup` mirror recreated after rollback destruction; SNAPSHOT rewritten to v8; lint baseline clean. QE item commits follow.
+9. **Phase 1 Quick Wins started** (owner mandate 2026-11-05): baseline evidence captured (`roadmaps/evidence/qe2-before-*.png` @1280/390px — confirms filter-bar overflow findings); `backup` mirror recreated after rollback destruction; SNAPSHOT rewritten to v8; lint baseline clean.
+10. **QE1 done (step 9):** list-row date restored — `note-card.tsx` list layout now renders snippet + relative date together (`ms-auto` end-pin, no-overflow); verified fa-RTL/en-LTR@1280 + @320px (`roadmaps/evidence/qe1-after-fa-1280.png`, `qe1-after-en-1280.png`, `qe1-after-en-320.png`); SNAPSHOT v9; lint clean; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 1 (active):** QE1 date-in-list-row → QE2 filter-bar reorg → QE3 clickable category cards → QE4 tags-on-cards → QE5 active-filters bar → QE6 capture save hint → QE7 password-reset backlog registration. Each with DoD verification + persistence cycle.
+- **Phase 1 (active):** ~~QE1~~ ✅ → **QE2 filter-bar reorg (next)** → QE3 clickable category cards → QE4 tags-on-cards → QE5 active-filters bar → QE6 capture save hint → QE7 password-reset backlog registration. Each with DoD verification + persistence cycle.
 - **Phase 2 (next, after sign-off):** S7 read-consolidation → S1 server-side query/pagination (kills 500-cap) → S8 batch/transaction → S4 title/content editor UI → S3 URL-persisted filters.
 - **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
 - Pending owner items: D17 ruling; A1–A8 review (Phase 0 W7); new PAT for `origin` push.

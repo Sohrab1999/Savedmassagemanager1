@@ -6,6 +6,19 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 9 — QE1 DONE: date restored to list rows (verified RTL/LTR/320px)
+- **Trigger:** Roadmap Phase 1 item QE1 (`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` §5): "در `NoteCard` لی‌اوت list، کنار snippet تاریخ نسبی نمایش داده شود. DoD: در نمای فهرست هر ردیف تاریخ دارد؛ تست دستی RTL/LTR هر دو؛ no-overflow در ۳۲۰px."
+- **Change (1 file, ~5 lines):** `src/components/app/note-card.tsx` list layout — snippet line replaced by a flex row: snippet (`min-w-0 truncate`) + relative date (`ms-auto shrink-0 text-[10px]`), so both are always visible; logical property keeps RTL/LTR correct; no snippet → date-only row preserved.
+- **DoD verification (agent-browser, demo mode):**
+  - fa-RTL @1280px: every row shows snippet + Persian relative date at row end — `roadmaps/evidence/qe1-after-fa-1280.png`.
+  - en-LTR @1280px: rows show snippet + "2 h ago" style dates — `roadmaps/evidence/qe1-after-en-1280.png`.
+  - @320px (en): programmatic overflow check `scrollWidth>clientWidth` → page `false`, row `false`; visual — `roadmaps/evidence/qe1-after-en-320.png`.
+  - Layout regression: none (title/snippet truncation intact; favorite toggle untouched).
+- **Lint:** clean. **SNAPSHOT:** v9 (sections 2/7/9/11/12 updated). **Roadmap checkbox:** QE1 ticked in the same commit as the final Phase-1 docs pass (kept until then so the file documents live status at completion; status mirrored here + SNAPSHOT §12 now).
+- **State after step:** QE1 ✅; next QE2 (filter-bar reorg; before-evidence already captured at step 8).
+- **Commit:** `feat(qe1): show relative saved date in library list rows` (final HEAD — live `git rev-parse HEAD`).
+- **Verification evidence:** local HEAD == `git ls-remote backup refs/heads/main` (recorded below at commit time; re-runnable via SNAPSHOT §9).
+
 ### Step 8 — Phase 1 Quick Wins launched: persistence baseline restored, SNAPSHOT v8 full rewrite, evidence captured
 - **Trigger:** Owner mandate (Persian, 2026-11-05): execute `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` **Phase 1 — Quick Wins (QE1–QE7, no architecture changes)**; after every step fully refresh `docs/SNAPSHOT.md` (not summary-append), update all reference docs, commit, push to remote, prove SHA parity via `git ls-remote`; acceptance criterion = a destroyed sandbox must be recoverable via fresh clone + repository docs alone.
 - **Protocol pre-check (live verification, before any change):**
