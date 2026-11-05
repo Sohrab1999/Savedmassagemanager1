@@ -6,6 +6,17 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 11 — QE3 DONE: category cards clickable (dashboard-parity affordance)
+- **Trigger:** Roadmap Phase 1 item QE3: "کلیک روی کارت دسته = `setFilters({categoryId}) + setView('library')` (هم‌سو با داشبورد). DoD: رفتار سه نما (داشبورد/دسته‌ها/تگ‌ها) یکسان؛ منوی ⋯ دست‌نخورده."
+- **Changes:** `src/components/app/views/categories-view.tsx` CategoriesTab — Card upgraded to `role="button"` + `tabIndex={0}` + aria-label `a11y.openCategory` + onClick/onKeyDown (Enter/Space) → `setFilters({ categoryId })` + `setView("library")`; hover/focus styles matching note cards; `stopPropagation` on the ⋯ DropdownMenuTrigger so menu clicks never navigate. `src/lib/i18n/dictionaries.ts` — new key `a11y.openCategory` (en: "Show items in this category", fa: "نمایش موارد این دسته"), both dictionaries type-checked.
+- **DoD verification (agent-browser, fa):**
+  - Click card "آموزش" → URL `#/library`, filter applied, results count "۳ مورد", category select shows آموزش. ✓
+  - ⋯ menu: real click opens menu (menuitems ویرایش/حذف visible), URL stays `#/categories` — no accidental navigation. ✓
+  - Keyboard: focus card → Enter → navigates to library. ✓
+  - A11y: cards now exposed as named buttons in the accessibility tree. ✓
+- **Lint:** clean. **SNAPSHOT:** v11. **State after step:** QE1 ✅ QE2 ✅ QE3 ✅; next QE4.
+- **Commit:** `feat(qe3): make category cards clickable to filter the library` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 10 — QE2 DONE: filter toolbar reorganized; sort & layout always in view
 - **Trigger:** Roadmap Phase 1 item QE2: "Layout/Sort به انتهای «پایدار» نوار منتقل یا در دسکتاپ همیشه در دید … DoD: در ۱۲۸۰px و ۳۹۰px، تغییر چیدمان و مرتب‌سازی بدون اسکرول افقی در دسترس است؛ اسکرین‌شات قبل/بعد ثبت شود." (Option A chosen: stable always-visible segment — simplest, zero new strings, no architecture change.)
 - **Change (1 file):** `src/components/app/views/library-view.tsx` — toolbar restructured into `<div flex items-center gap-1.5>`: (a) scrollable chip zone (`min-w-0 flex-1 overflow-x-auto`) = type/favorite/archived/category/tags; (b) **stable segment (`shrink-0`, outside the scroll area)** = separator + sort select + grid/list layout toggle. Removed the now-redundant third in-scroll separator.

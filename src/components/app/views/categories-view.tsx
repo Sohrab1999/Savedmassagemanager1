@@ -197,6 +197,8 @@ function CategoriesTab() {
   const { t, locale } = useI18n();
   const categoriesQuery = useCategories();
   const deleteCategory = useDeleteCategory();
+  const setFilters = useAppStore((state) => state.setFilters);
+  const setView = useAppStore((state) => state.setView);
   const [formState, setFormState] = useState<CategoryFormState>({
     open: false,
     editing: null,
@@ -238,7 +240,25 @@ function CategoriesTab() {
           {categories.map((category) => {
             const Icon = iconByName(category.icon);
             return (
-              <Card key={category.id} className="shadow-xs">
+              <Card
+                key={category.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`${t("a11y.openCategory")}: ${localizedCategoryName(category, locale)}`}
+                onClick={() => {
+                  // Same affordance as dashboard tiles: click = filter library (QE3).
+                  setFilters({ categoryId: category.id });
+                  setView("library");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setFilters({ categoryId: category.id });
+                    setView("library");
+                  }
+                }}
+                className="cursor-pointer shadow-xs transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring"
+              >
                 <CardContent className="flex items-center gap-3 p-4">
                   <span
                     className="flex size-10 shrink-0 items-center justify-center rounded-xl"
@@ -268,6 +288,7 @@ function CategoriesTab() {
                         size="icon"
                         className="size-8"
                         aria-label={t("common.edit")}
+                        onClick={(event) => event.stopPropagation()}
                       >
                         <MoreHorizontal className="size-4" aria-hidden="true" />
                       </Button>

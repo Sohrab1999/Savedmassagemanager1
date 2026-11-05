@@ -184,6 +184,7 @@ export const en = {
   "a11y.capture": "Quick capture",
   "a11y.mainNav": "Main navigation",
   "a11y.openNote": "Open item",
+  "a11y.openCategory": "Show items in this category",
   "a11y.favoriteToggle": "Toggle favorite",
   "a11y.accountMenu": "Account menu",
 
@@ -403,6 +404,7 @@ export const fa: Record<I18nKey, string> = {
   "a11y.capture": "ثبت سریع",
   "a11y.mainNav": "ناوبری اصلی",
   "a11y.openNote": "باز کردن مورد",
+  "a11y.openCategory": "نمایش موارد این دسته",
   "a11y.favoriteToggle": "تغییر وضعیت علاقه‌مندی",
   "a11y.accountMenu": "منوی حساب",
 
