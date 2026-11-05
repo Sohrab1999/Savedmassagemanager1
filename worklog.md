@@ -6,6 +6,16 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 10 — QE2 DONE: filter toolbar reorganized; sort & layout always in view
+- **Trigger:** Roadmap Phase 1 item QE2: "Layout/Sort به انتهای «پایدار» نوار منتقل یا در دسکتاپ همیشه در دید … DoD: در ۱۲۸۰px و ۳۹۰px، تغییر چیدمان و مرتب‌سازی بدون اسکرول افقی در دسترس است؛ اسکرین‌شات قبل/بعد ثبت شود." (Option A chosen: stable always-visible segment — simplest, zero new strings, no architecture change.)
+- **Change (1 file):** `src/components/app/views/library-view.tsx` — toolbar restructured into `<div flex items-center gap-1.5>`: (a) scrollable chip zone (`min-w-0 flex-1 overflow-x-auto`) = type/favorite/archived/category/tags; (b) **stable segment (`shrink-0`, outside the scroll area)** = separator + sort select + grid/list layout toggle. Removed the now-redundant third in-scroll separator.
+- **DoD verification (agent-browser):**
+  - Programmatic: layout-toggle `getBoundingClientRect()` fully inside viewport @1280 AND @390; `pageOverflowX=false`; fa (dir=rtl, lang=fa) + en both.
+  - Evidence: `roadmaps/evidence/qe2-before-1280.png` + `qe2-before-390.png` (captured at step 8 — sort clipped/hidden) vs `qe2-after-fa-1280.png`, `qe2-after-fa-390.png` (sort "جدیدترین" + toggle fully visible at row end), `qe2-after-en-1280.png`, `qe2-after-en-390.png`.
+  - Interaction regression: list-toggle click works (list rows render); QE1 dates still present in list rows; no horizontal page overflow at any tested width.
+- **Lint:** clean. **SNAPSHOT:** v10. **State after step:** QE1 ✅ QE2 ✅; next QE3.
+- **Commit:** `feat(qe2): keep sort & layout controls always visible in library toolbar` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 9 — QE1 DONE: date restored to list rows (verified RTL/LTR/320px)
 - **Trigger:** Roadmap Phase 1 item QE1 (`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` §5): "در `NoteCard` لی‌اوت list، کنار snippet تاریخ نسبی نمایش داده شود. DoD: در نمای فهرست هر ردیف تاریخ دارد؛ تست دستی RTL/LTR هر دو؛ no-overflow در ۳۲۰px."
 - **Change (1 file, ~5 lines):** `src/components/app/note-card.tsx` list layout — snippet line replaced by a flex row: snippet (`min-w-0 truncate`) + relative date (`ms-auto shrink-0 text-[10px]`), so both are always visible; logical property keeps RTL/LTR correct; no snippet → date-only row preserved.

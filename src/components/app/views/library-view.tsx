@@ -173,8 +173,11 @@ export function LibraryView() {
         ) : null}
       </div>
 
-      {/* Filter toolbar */}
-      <div className="scroll-area -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      {/* Filter toolbar — scrollable chips + always-visible stable controls (QE2):
+          sort & layout live OUTSIDE the horizontal scroll area so they are
+          reachable without scrolling at any viewport width. */}
+      <div className="flex items-center gap-1.5">
+        <div className="scroll-area -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1">
         {/* Type chips */}
         <FilterChip
           active={filters.type === "all"}
@@ -293,8 +296,10 @@ export function LibraryView() {
             </div>
           </PopoverContent>
         </Popover>
+        </div>
 
-        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
+        {/* Stable end of the bar — never scrolls out of view (QE2) */}
+        <span className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
         {/* Sort */}
         <Select
