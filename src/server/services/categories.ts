@@ -30,7 +30,7 @@ export async function listCategories(): Promise<CategoryDTO[]> {
   const categories = await db.category.findMany({
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: {
-      _count: { select: { notes: { where: { isArchived: false } } } },
+      _count: { select: { notes: { where: { isArchived: false, deletedAt: null } } } },
     },
   });
   return categories.map((category) => ({
@@ -79,7 +79,7 @@ export async function updateCategory(
   const updated = await db.category.findUnique({
     where: { id },
     include: {
-      _count: { select: { notes: { where: { isArchived: false } } } },
+      _count: { select: { notes: { where: { isArchived: false, deletedAt: null } } } },
     },
   });
   if (!updated) return null;

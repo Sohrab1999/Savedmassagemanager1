@@ -8,9 +8,10 @@ export async function listTags(): Promise<TagDTO[]> {
     orderBy: { createdAt: "asc" },
     include: {
       // Tag.notes goes through the NoteTag join model, so the filtered
-      // count traverses the relation: count NoteTag rows whose note is active.
+      // count traverses the relation: count NoteTag rows whose note is
+      // active and not in the trash (S5).
       _count: {
-        select: { notes: { where: { note: { isArchived: false } } } },
+        select: { notes: { where: { note: { isArchived: false, deletedAt: null } } } },
       },
     },
   });

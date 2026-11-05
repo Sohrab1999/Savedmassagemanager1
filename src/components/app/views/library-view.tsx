@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Star,
+  Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,8 @@ export function LibraryView() {
     filters.categoryId !== "all" ||
     filters.tagIds.length > 0 ||
     filters.favorite ||
-    filters.archived;
+    filters.archived ||
+    filters.trash;
 
   const toggleTag = useCallback(
     (tagId: string) => {
@@ -106,7 +108,8 @@ export function LibraryView() {
     (filters.categoryId !== "all" ? 1 : 0) +
     filters.tagIds.length +
     (filters.favorite ? 1 : 0) +
-    (filters.archived ? 1 : 0);
+    (filters.archived ? 1 : 0) +
+    (filters.trash ? 1 : 0);
 
   const activeCategory =
     filters.categoryId === "all"
@@ -233,7 +236,7 @@ export function LibraryView() {
 
         <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
 
-        {/* Favorite / archived */}
+        {/* Favorite / archived / trash (S5) */}
         <FilterChip
           active={filters.favorite}
           onClick={() => setFilters({ favorite: !filters.favorite })}
@@ -245,6 +248,12 @@ export function LibraryView() {
           onClick={() => setFilters({ archived: !filters.archived })}
           icon={<Archive className="size-3.5" aria-hidden="true" />}
           label={t("library.filters.archived")}
+        />
+        <FilterChip
+          active={filters.trash}
+          onClick={() => setFilters({ trash: !filters.trash })}
+          icon={<Trash2 className="size-3.5" aria-hidden="true" />}
+          label={t("library.filters.trash")}
         />
 
         <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
@@ -430,6 +439,12 @@ export function LibraryView() {
             <ActiveFilterChip
               label={t("library.filters.archived")}
               onRemove={() => setFilters({ archived: false })}
+            />
+          ) : null}
+          {filters.trash ? (
+            <ActiveFilterChip
+              label={t("library.filters.trash")}
+              onRemove={() => setFilters({ trash: false })}
             />
           ) : null}
           <span className="ms-auto shrink-0 text-[11px] text-muted-foreground">

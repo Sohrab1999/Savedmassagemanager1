@@ -23,20 +23,14 @@ import {
   collection,
   deleteDoc,
   doc,
-  getCountFromServer,
   getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
   setDoc,
-  startAfter,
   updateDoc,
-  where,
   writeBatch,
   type DocumentReference,
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirestoreDb } from "@/services/firebase";
+import { realtimeStore, mapNote } from "@/services/realtime";
 import {
   AuthRequiredError,
   FS_PATHS,
@@ -60,56 +54,29 @@ import {
   type UpdateNoteInput,
 } from "@/domain/types";
 
-const MAX_NOTES_FETCH = 500;
+// ---------------------------------------------------------------------------
+// G1 — Live reads via the realtime store
+//
+// Every read below resolves from the permanent onSnapshot listener set
+// (src/services/realtime.ts) instead of issuing one-shot downloads. The
+// listener is uncapped (Silent-Loss = 0) and stays warm across view switches,
+// so:
+//   • Read cost after the initial stream is ~zero (KPI: ≥ 60 % fewer reads).
+//   • Every tab/device sees writes within the push round-trip.
+//   • Offline, the same arrays are served from the IndexedDB cache.
+// The remaining getDoc calls are targeted fallbacks for documents the
+// listener has not surfaced yet (e.g. a note created milliseconds ago on
+// another client) and the profile document (not in G1's scope).
+// ---------------------------------------------------------------------------
+
 const VALID_TYPES: NoteType[] = ["text", "link", "image", "video", "file"];
 
-// ---------------------------------------------------------------------------
-// S7 — Shared notes snapshot (read consolidation)
-//
-// `getStats` / `listCategories` / `listTags` / category note-counts all need
-// the user's notes. Previously EACH re-downloaded up to 500 docs, so one
-// dashboard mount cost up to 3 full reads. The session snapshot below keeps
-// ONE copy in memory (per module session) and every write invalidates it, so
-// any combination of these views downloads the notes collection at most once
-// per freshness window.
-// ---------------------------------------------------------------------------
-
-const SNAPSHOT_TTL_MS = 60_000;
-
-interface NotesSnapshot {
-  data: NoteDTO[];
-  fetchedAt: number;
-}
-
-let notesSnapshot: NotesSnapshot | null = null;
-let snapshotInFlight: Promise<NoteDTO[]> | null = null;
-
-function invalidateNotesSnapshot(): void {
-  notesSnapshot = null;
-}
-
-async function getNotesSnapshot(): Promise<NoteDTO[]> {
-  if (notesSnapshot && Date.now() - notesSnapshot.fetchedAt < SNAPSHOT_TTL_MS) {
-    return notesSnapshot.data;
-  }
-  // Concurrent callers (e.g. getStats + listCategories on one dashboard mount)
-  // must share a single download, not race into two.
-  if (!snapshotInFlight) {
-    snapshotInFlight = (async () => {
-      const root = userRoot(requireUid());
-      // S1: deliberately UNCAPPED — the snapshot is the one full read per
-      // session window that every derived view (stats/categories/tags and
-      // q/tag list filtering) shares. Capping it here would re-introduce the
-      // silent >500 loss (North-Star: Silent-Loss = 0).
-      const snapshot = await getDocs(query(root.notes, orderBy("savedAt", "desc")));
-      const data = snapshot.docs.map((entry) => mapNote(entry.id, entry.data()));
-      notesSnapshot = { data, fetchedAt: Date.now() };
-      return data;
-    })().finally(() => {
-      snapshotInFlight = null;
-    });
-  }
-  return snapshotInFlight;
+/** Starts (idempotent) and awaits the live store for the verified session. */
+async function liveNotes(): Promise<NoteDTO[]> {
+  const uid = requireUid();
+  realtimeStore.start(uid);
+  await realtimeStore.ensureReady();
+  return realtimeStore.notes;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,37 +153,8 @@ function userRoot(uid: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Document ↔ DTO mapping
+// Document ↔ DTO mapping (note mapping lives in realtime.ts — G1)
 // ---------------------------------------------------------------------------
-
-function asStringOrNull(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function mapNote(id: string, data: Record<string, unknown>): NoteDTO {
-  const doc_ = data as unknown as NoteDoc;
-  return {
-    id,
-    type: VALID_TYPES.includes(doc_.type) ? doc_.type : "text",
-    title: doc_.title,
-    content: doc_.content ?? null,
-    description: doc_.description ?? null,
-    url: doc_.url ?? null,
-    mediaUrl: doc_.mediaUrl ?? null,
-    fileName: doc_.fileName ?? null,
-    fileSize: doc_.fileSize ?? null,
-    mediaDuration: doc_.mediaDuration ?? null,
-    sourceChat: doc_.sourceChat ?? null,
-    sourceType: doc_.sourceType ?? "manual",
-    categoryId: doc_.categoryId ?? null,
-    category: doc_.category ?? null,
-    tags: Array.isArray(doc_.tags) ? doc_.tags : [],
-    isFavorite: Boolean(doc_.isFavorite),
-    isArchived: Boolean(doc_.isArchived),
-    savedAt: new Date(doc_.savedAt).toISOString(),
-    updatedAt: new Date(doc_.updatedAt).toISOString(),
-  };
-}
 
 function mapCategory(
   id: string,
@@ -236,6 +174,17 @@ function mapCategory(
   };
 }
 
+function categoryRefFrom(id: string, data: CategoryDoc): CategoryRefDoc {
+  return {
+    id,
+    slug: data.slug,
+    name: data.name,
+    nameFa: data.nameFa ?? null,
+    icon: data.icon,
+    color: data.color,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Shared filters (Prisma-service parity)
 // ---------------------------------------------------------------------------
@@ -250,6 +199,12 @@ function matchesText(note: NoteDTO, q: string): boolean {
 
 function filterAndSort(notes: NoteDTO[], filters: NoteFilters): NoteDTO[] {
   let items = notes;
+
+  // S5 — view selection first: the trash view shows ONLY soft-deleted notes;
+  // every other view hides them entirely.
+  items = items.filter((note) =>
+    filters.trash ? note.deletedAt !== null : note.deletedAt === null,
+  );
 
   if (filters.q?.trim()) {
     const q = filters.q.trim().toLowerCase();
@@ -284,18 +239,14 @@ function filterAndSort(notes: NoteDTO[], filters: NoteFilters): NoteDTO[] {
 }
 
 async function loadCategoryRef(categoryId: string): Promise<CategoryRefDoc | null> {
+  await liveNotes(); // keeps the live category docs current
+  const live = realtimeStore.categoryDocs.find((entry) => entry.id === categoryId);
+  if (live) return categoryRefFrom(live.id, live.data);
+  // Fallback for a category created milliseconds ago on another client.
   const root = userRoot(requireUid());
   const snapshot = await getDoc(root.categoryDoc(categoryId));
   if (!snapshot.exists()) return null;
-  const data = snapshot.data() as unknown as CategoryDoc;
-  return {
-    id: snapshot.id,
-    slug: data.slug,
-    name: data.name,
-    nameFa: data.nameFa ?? null,
-    icon: data.icon,
-    color: data.color,
-  };
+  return categoryRefFrom(snapshot.id, snapshot.data() as unknown as CategoryDoc);
 }
 
 /** Tag connectOrCreate semantics, mirroring the Prisma service.
@@ -314,13 +265,14 @@ async function resolveTagRefs(names: string[]): Promise<TagRefDoc[]> {
   if (wanted.length === 0) return [];
 
   const root = userRoot(requireUid());
+  await liveNotes(); // keeps the live tag docs current
   const refs: TagRefDoc[] = [];
   const missing: string[] = [];
 
-  const existing = await getDocs(query(root.tags, where("name", "in", wanted)));
+  const wantedSet = new Set(wanted);
   const idByName = new Map<string, string>();
-  for (const hit of existing.docs) {
-    idByName.set((hit.data() as unknown as TagDoc).name, hit.id);
+  for (const entry of realtimeStore.tagDocs) {
+    if (wantedSet.has(entry.data.name)) idByName.set(entry.data.name, entry.id);
   }
   for (const name of wanted) {
     const id = idByName.get(name);
@@ -333,97 +285,29 @@ async function resolveTagRefs(names: string[]): Promise<TagRefDoc[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Notes (S1 — server-side structured query + pagination)
+// Notes (S1 pagination presentation over the G1 live store)
 //
-// Two paths, chosen per request so filter semantics stay EXACT in both modes:
-//  • Structured path (no free-text q, ≤1 tag filter impossible-with-id problem
-//    → actually: no q AND no tag filter): Firestore where/orderBy/limit/startAfter
-//    with a 30-item page + getCountFromServer for the exact total. No 500 cap.
-//  • Snapshot path (q set, or tag filter set): the web SDK has no substring
-//    search, and tag filters are stored as denormalized {id,name} objects that
-//    array-contains cannot match from an id alone — so these run client-side
-//    over the shared S7 snapshot, which is a FULL read (500 cap removed) and
-//    cached for the whole session window. Silent truncation is impossible on
-//    both paths.
+// The 30-item page contract is unchanged for the UI (Load more, exact total).
+// What changed with G1 is WHERE pages come from: the live local array (one
+// permanent listener) instead of per-page server queries. The former
+// structured-query path (where/orderBy/startAfter/getCountFromServer) was
+// removed with the one-shot reads it served — its guarantees survive:
+// uncapped data (no silent loss), exact totals, deterministic offset pages,
+// and demo-parity sort semantics enforced in filterAndSort.
 // ---------------------------------------------------------------------------
 
 const NOTES_PAGE_SIZE = 30;
 
-function encodeCursor(ref: DocumentReference): string {
-  return btoa(encodeURIComponent(ref.path));
-}
-
-function decodeCursor(token: string | undefined): DocumentReference | null {
-  if (!token) return null;
-  try {
-    const path = decodeURIComponent(atob(token));
-    return doc(getFirestoreDb(), path);
-  } catch {
-    return null;
-  }
-}
-
-/** Numeric offset cursor for the snapshot path (q / tag filtering). */
+/** Numeric offset cursor over the live array. */
 function decodeOffset(token: string | undefined): number {
   const parsed = Number.parseInt(token ?? "0", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
-/** Filters expressible as Firestore where-clauses (the structured path). */
-function supportsStructuredQuery(filters: NoteFilters): boolean {
-  return !filters.q?.trim() && !(filters.tagIds && filters.tagIds.length > 0);
-}
-
-async function listNotesStructured(filters: NoteFilters): Promise<NoteListResponse> {
-  const root = userRoot(requireUid());
-  const conditions: Array<ReturnType<typeof where>> = [];
-  if (filters.type && filters.type !== "all" && VALID_TYPES.includes(filters.type)) {
-    conditions.push(where("type", "==", filters.type));
-  }
-  if (filters.categoryId === "none") conditions.push(where("categoryId", "==", null));
-  else if (filters.categoryId && filters.categoryId !== "all") {
-    conditions.push(where("categoryId", "==", filters.categoryId));
-  }
-  if (filters.favorite) conditions.push(where("isFavorite", "==", true));
-  if (filters.archived !== undefined) conditions.push(where("isArchived", "==", filters.archived));
-
-  const sort = filters.sort ?? "newest";
-  const orderByField = sort === "title" ? "title" : "savedAt";
-  // Demo-mode parity (Prisma service): title sorts ASC, newest/oldest control
-  // savedAt direction. This must match src/server/services/notes.ts exactly.
-  const direction = sort === "oldest" || sort === "title" ? "asc" : "desc";
-
-  const base = query(root.notes, ...conditions, orderBy(orderByField, direction));
-  const cursor = decodeCursor(filters.pageToken);
-  const pageQuery = cursor
-    ? query(base, startAfter(cursor), limit(NOTES_PAGE_SIZE))
-    : query(base, limit(NOTES_PAGE_SIZE));
-
-  const [pageSnapshot, countSnapshot] = await Promise.all([
-    getDocs(pageQuery),
-    getCountFromServer(base),
-  ]);
-
-  const docs = pageSnapshot.docs;
-  const last = docs[docs.length - 1];
-  const total = countSnapshot.data().count;
-  return {
-    items: docs.map((entry) => mapNote(entry.id, entry.data())),
-    total,
-    nextCursor:
-      last && docs.length === NOTES_PAGE_SIZE && total > docs.length
-        ? encodeCursor(last.ref)
-        : null,
-  };
-}
-
 export async function listNotes(filters: NoteFilters): Promise<NoteListResponse> {
-  if (supportsStructuredQuery(filters)) {
-    return listNotesStructured(filters);
-  }
-  // Exact-semantics path over the shared session snapshot (full read, cached),
-  // paginated with a numeric offset cursor for uniform UI behavior.
-  const notes = await getNotesSnapshot();
+  // G1: pages derive from the live store — no per-page network reads. The
+  // function stays async so the UI contract (loading → loaded) is unchanged.
+  const notes = await liveNotes();
   const sorted = filterAndSort(notes, filters);
   const pageSize = Math.min(Math.max(filters.pageSize ?? NOTES_PAGE_SIZE, 1), 100);
   const offset = decodeOffset(filters.pageToken);
@@ -437,6 +321,11 @@ export async function listNotes(filters: NoteFilters): Promise<NoteListResponse>
 }
 
 export async function getNote(id: string): Promise<NoteDTO> {
+  await liveNotes();
+  const live = realtimeStore.getNoteById(id);
+  if (live) return live;
+  // Fallback: the listener may not have surfaced a document written
+  // milliseconds ago on another client.
   const root = userRoot(requireUid());
   const snapshot = await getDoc(root.noteDoc(id));
   if (!snapshot.exists()) throw new NotFoundError("note");
@@ -466,12 +355,12 @@ export async function createNote(input: CreateNoteInput): Promise<NoteDTO> {
     tags,
     isFavorite: false,
     isArchived: false,
+    deletedAt: null,
     savedAt: now,
     updatedAt: now,
   };
 
   const created = await addDoc(root.notes, payload);
-  invalidateNotesSnapshot();
   return {
     id: created.id,
     type: payload.type,
@@ -490,6 +379,7 @@ export async function createNote(input: CreateNoteInput): Promise<NoteDTO> {
     tags: payload.tags,
     isFavorite: payload.isFavorite,
     isArchived: payload.isArchived,
+    deletedAt: null,
     savedAt: new Date(now).toISOString(),
     updatedAt: new Date(now).toISOString(),
   };
@@ -497,9 +387,14 @@ export async function createNote(input: CreateNoteInput): Promise<NoteDTO> {
 
 export async function updateNote(id: string, input: UpdateNoteInput): Promise<NoteDTO> {
   const root = userRoot(requireUid());
-  const snapshot = await getDoc(root.noteDoc(id));
-  if (!snapshot.exists()) throw new NotFoundError("note");
-  const existing = mapNote(snapshot.id, snapshot.data());
+  await liveNotes();
+  let existing = realtimeStore.getNoteById(id);
+  if (!existing) {
+    // Fallback for documents the listener has not surfaced yet.
+    const snapshot = await getDoc(root.noteDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("note");
+    existing = mapNote(snapshot.id, snapshot.data());
+  }
 
   const updatedAt = Date.now();
   const patch: Partial<NoteDoc> = { updatedAt };
@@ -531,7 +426,6 @@ export async function updateNote(id: string, input: UpdateNoteInput): Promise<No
   }
 
   await updateDoc(root.noteDoc(id), patch);
-  invalidateNotesSnapshot();
   return {
     ...existing,
     ...patch,
@@ -540,12 +434,34 @@ export async function updateNote(id: string, input: UpdateNoteInput): Promise<No
   } as NoteDTO;
 }
 
+/** S5 — soft delete: the note moves to the trash (deletedAt set) and stays
+ * recoverable for 7 days (client-side purge lives in realtime.ts). */
 export async function deleteNote(id: string): Promise<{ ok: true }> {
   const root = userRoot(requireUid());
-  const snapshot = await getDoc(root.noteDoc(id));
-  if (!snapshot.exists()) throw new NotFoundError("note");
-  await deleteDoc(root.noteDoc(id));
-  invalidateNotesSnapshot();
+  await liveNotes();
+  if (!realtimeStore.getNoteById(id)) {
+    const snapshot = await getDoc(root.noteDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("note");
+  }
+  await updateDoc(root.noteDoc(id), {
+    deletedAt: Date.now(),
+    updatedAt: Date.now(),
+  });
+  return { ok: true };
+}
+
+/** S5 — undo: leaves the trash (deletedAt cleared). */
+export async function restoreNote(id: string): Promise<{ ok: true }> {
+  const root = userRoot(requireUid());
+  await liveNotes();
+  if (!realtimeStore.getNoteById(id)) {
+    const snapshot = await getDoc(root.noteDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("note");
+  }
+  await updateDoc(root.noteDoc(id), {
+    deletedAt: null,
+    updatedAt: Date.now(),
+  });
   return { ok: true };
 }
 
@@ -562,23 +478,21 @@ function slugify(value: string): string {
 }
 
 export async function listCategories(): Promise<{ items: CategoryDTO[] }> {
-  const root = userRoot(requireUid());
-  const [categorySnap, notes] = await Promise.all([
-    getDocs(query(root.categories, orderBy("order", "asc"), limit(200))),
-    getNotesSnapshot(),
-  ]);
+  const notes = await liveNotes();
 
   const counts = new Map<string, number>();
   for (const note of notes) {
-    if (note.isArchived || !note.categoryId) continue;
+    if (note.isArchived || note.deletedAt !== null || !note.categoryId) continue;
     counts.set(note.categoryId, (counts.get(note.categoryId) ?? 0) + 1);
   }
 
-  return {
-    items: categorySnap.docs.map((entry) =>
-      mapCategory(entry.id, entry.data(), counts.get(entry.id) ?? 0),
-    ),
-  };
+  const items = [...realtimeStore.categoryDocs]
+    .sort(
+      (a, b) =>
+        a.data.order - b.data.order || a.data.createdAt - b.data.createdAt,
+    )
+    .map((entry) => mapCategory(entry.id, entry.data, counts.get(entry.id) ?? 0));
+  return { items };
 }
 
 export async function createCategory(input: {
@@ -588,15 +502,15 @@ export async function createCategory(input: {
   color?: string;
 }): Promise<CategoryDTO> {
   const root = userRoot(requireUid());
+  await liveNotes();
   const name = input.name.trim() || "Untitled";
-  const existing = await getDocs(
-    query(root.categories, orderBy("order", "desc"), limit(1)),
+  const maxOrder = realtimeStore.categoryDocs.reduce(
+    (max, entry) => Math.max(max, entry.data.order ?? 0),
+    0,
   );
-  const maxOrder = existing.empty ? 0 : (existing.docs[0].data() as unknown as CategoryDoc).order ?? 0;
 
   // Slug uniqueness within the user's own categories.
-  const all = await getDocs(query(root.categories, limit(200)));
-  const taken = new Set(all.docs.map((entry) => (entry.data() as unknown as CategoryDoc).slug));
+  const taken = new Set(realtimeStore.categoryDocs.map((entry) => entry.data.slug));
   let slug = slugify(name);
   while (taken.has(slug)) slug = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -610,7 +524,6 @@ export async function createCategory(input: {
     createdAt: Date.now(),
   };
   const created = await addDoc(root.categories, payload);
-  invalidateNotesSnapshot();
   return mapCategory(created.id, payload, 0);
 }
 
@@ -619,9 +532,17 @@ export async function updateCategory(
   input: { name?: string; nameFa?: string | null; icon?: string; color?: string },
 ): Promise<CategoryDTO> {
   const root = userRoot(requireUid());
-  const snapshot = await getDoc(root.categoryDoc(id));
-  if (!snapshot.exists()) throw new NotFoundError("category");
-  const current = snapshot.data() as unknown as CategoryDoc;
+  await liveNotes();
+  const live = realtimeStore.categoryDocs.find((entry) => entry.id === id);
+  let current: CategoryDoc;
+  if (live) {
+    current = live.data;
+  } else {
+    // Fallback for a category created milliseconds ago on another client.
+    const snapshot = await getDoc(root.categoryDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("category");
+    current = snapshot.data() as unknown as CategoryDoc;
+  }
 
   const patch: Partial<CategoryDoc> = {};
   if (input.name !== undefined) patch.name = input.name.trim();
@@ -632,49 +553,42 @@ export async function updateCategory(
   await updateDoc(root.categoryDoc(id), patch);
   const merged: CategoryDoc = { ...current, ...patch };
 
-  // Fan-out: keep the denormalized category reference on notes in sync.
+  // Fan-out (G1): targets come from the live array — read-free and UNCAPPED
+  // (the former S8 lookup query stopped at MAX_NOTES_FETCH = 500).
   if (Object.keys(patch).length > 0) {
-    const owned = await getDocs(
-      query(root.notes, where("categoryId", "==", id), limit(MAX_NOTES_FETCH)),
-    );
-    const ref: CategoryRefDoc = {
-      id,
-      slug: merged.slug,
-      name: merged.name,
-      nameFa: merged.nameFa ?? null,
-      icon: merged.icon,
-      color: merged.color,
-    };
+    const ref = categoryRefFrom(id, merged);
     await batchedUpdate(
-      owned.docs.map((entry) => ({ ref: entry.ref, data: { category: ref } })),
+      realtimeStore.notes
+        .filter((note) => note.categoryId === id)
+        .map((note) => ({ ref: root.noteDoc(note.id), data: { category: ref } })),
     );
-    invalidateNotesSnapshot();
   }
 
-  const notes = await getNotesSnapshot();
-  const noteCount = notes.filter((note) => !note.isArchived && note.categoryId === id).length;
+  const noteCount = realtimeStore.notes.filter(
+    (note) => !note.isArchived && note.deletedAt === null && note.categoryId === id,
+  ).length;
   return mapCategory(id, merged, noteCount);
 }
 
 export async function deleteCategory(id: string): Promise<{ ok: true }> {
   const root = userRoot(requireUid());
-  const snapshot = await getDoc(root.categoryDoc(id));
-  if (!snapshot.exists()) throw new NotFoundError("category");
+  await liveNotes();
+  if (!realtimeStore.categoryDocs.some((entry) => entry.id === id)) {
+    const snapshot = await getDoc(root.categoryDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("category");
+  }
   await deleteDoc(root.categoryDoc(id));
-  invalidateNotesSnapshot();
 
   // Fan-out: detach from notes (Prisma service keeps orphaned categoryId; the
   // Firestore model stores the ref inline, so it must be cleared explicitly).
-  const owned = await getDocs(
-    query(root.notes, where("categoryId", "==", id), limit(MAX_NOTES_FETCH)),
-  );
   await batchedUpdate(
-    owned.docs.map((entry) => ({
-      ref: entry.ref,
-      data: { categoryId: null, category: null },
-    })),
+    realtimeStore.notes
+      .filter((note) => note.categoryId === id)
+      .map((note) => ({
+        ref: root.noteDoc(note.id),
+        data: { categoryId: null, category: null },
+      })),
   );
-  invalidateNotesSnapshot();
   return { ok: true };
 }
 
@@ -683,61 +597,61 @@ export async function deleteCategory(id: string): Promise<{ ok: true }> {
 // ---------------------------------------------------------------------------
 
 export async function listTags(): Promise<{ items: TagDTO[] }> {
-  const root = userRoot(requireUid());
-  const [tagSnap, notes] = await Promise.all([
-    getDocs(query(root.tags, orderBy("name", "asc"), limit(300))),
-    getNotesSnapshot(),
-  ]);
+  const notes = await liveNotes();
 
   const counts = new Map<string, number>();
   for (const note of notes) {
-    if (note.isArchived) continue;
+    if (note.isArchived || note.deletedAt !== null) continue;
     for (const tag of note.tags) {
       counts.set(tag.id, (counts.get(tag.id) ?? 0) + 1);
     }
   }
 
-  return {
-    items: tagSnap.docs.map((entry) => ({
+  const items = [...realtimeStore.tagDocs]
+    .sort((a, b) => a.data.name.localeCompare(b.data.name))
+    .map((entry) => ({
       id: entry.id,
-      name: (entry.data() as unknown as TagDoc).name,
+      name: entry.data.name,
       noteCount: counts.get(entry.id) ?? 0,
-    })),
-  };
+    }));
+  return { items };
 }
 
 export async function createTag(input: { name: string }): Promise<TagDTO> {
-  const root = userRoot(requireUid());
+  await liveNotes();
   const name = input.name.trim();
-  const existing = await getDocs(query(root.tags, where("name", "==", name), limit(1)));
-  if (!existing.empty) {
-    const hit = existing.docs[0];
-    return { id: hit.id, name: (hit.data() as unknown as TagDoc).name, noteCount: 0 };
+  const existing = realtimeStore.tagDocs.find((entry) => entry.data.name === name);
+  if (existing) {
+    return { id: existing.id, name: existing.data.name, noteCount: 0 };
   }
+  const root = userRoot(requireUid());
   const created = await addDoc(root.tags, { name, createdAt: Date.now() } satisfies TagDoc);
-  invalidateNotesSnapshot();
   return { id: created.id, name, noteCount: 0 };
 }
 
 export async function deleteTag(id: string): Promise<{ ok: true }> {
   const root = userRoot(requireUid());
-  const snapshot = await getDoc(root.tagDoc(id));
-  if (!snapshot.exists()) throw new NotFoundError("tag");
-  const name = (snapshot.data() as unknown as TagDoc).name;
+  await liveNotes();
+  const live = realtimeStore.tagDocs.find((entry) => entry.id === id);
+  let name: string;
+  if (live) {
+    name = live.data.name;
+  } else {
+    const snapshot = await getDoc(root.tagDoc(id));
+    if (!snapshot.exists()) throw new NotFoundError("tag");
+    name = (snapshot.data() as unknown as TagDoc).name;
+  }
   await deleteDoc(root.tagDoc(id));
-  invalidateNotesSnapshot();
 
   // Fan-out: strip the reference from notes that still point at this tag.
-  const owned = await getDocs(
-    query(root.notes, where("tags", "array-contains", { id, name }), limit(MAX_NOTES_FETCH)),
-  );
   await batchedUpdate(
-    owned.docs.map((entry) => ({
-      ref: entry.ref,
-      data: { tags: arrayRemove({ id, name }) },
-    })),
+    realtimeStore.notes
+      .filter((note) => note.tags.some((tag) => tag.id === id))
+      .map((note) => ({
+        ref: root.noteDoc(note.id),
+        data: { tags: arrayRemove({ id, name }) },
+      })),
   );
-  invalidateNotesSnapshot();
   return { ok: true };
 }
 
@@ -746,8 +660,9 @@ export async function deleteTag(id: string): Promise<{ ok: true }> {
 // ---------------------------------------------------------------------------
 
 export async function getStats(): Promise<StatsDTO> {
-  const [notes, categoryResult] = await Promise.all([getNotesSnapshot(), listCategories()]);
-  const active = notes.filter((note) => !note.isArchived);
+  const notes = await liveNotes();
+  const live = notes.filter((note) => note.deletedAt === null);
+  const active = live.filter((note) => !note.isArchived);
   const weekAgo = Date.now() - 7 * 86_400_000;
 
   const byType: Record<NoteType, number> = { text: 0, link: 0, image: 0, video: 0, file: 0 };
@@ -755,22 +670,28 @@ export async function getStats(): Promise<StatsDTO> {
     if (note.type in byType) byType[note.type] += 1;
   }
 
+  // Category counts — listCategories semantics computed from the live arrays
+  // without an extra round-trip.
+  const counts = new Map<string, number>();
+  for (const note of active) {
+    if (!note.categoryId) continue;
+    counts.set(note.categoryId, (counts.get(note.categoryId) ?? 0) + 1);
+  }
+  const orderedCategories = [...realtimeStore.categoryDocs].sort(
+    (a, b) => a.data.order - b.data.order || a.data.createdAt - b.data.createdAt,
+  );
+
   const sortedBySaved = [...active].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 
   return {
     total: active.length,
     favorites: active.filter((note) => note.isFavorite).length,
-    archived: notes.length - active.length,
+    archived: live.length - active.length,
     thisWeek: active.filter((note) => new Date(note.savedAt).getTime() >= weekAgo).length,
     byType,
-    byCategory: categoryResult.items.map((category) => ({
-      id: category.id,
-      slug: category.slug,
-      name: category.name,
-      nameFa: category.nameFa,
-      icon: category.icon,
-      color: category.color,
-      count: category.noteCount,
+    byCategory: orderedCategories.map((entry) => ({
+      ...categoryRefFrom(entry.id, entry.data),
+      count: counts.get(entry.id) ?? 0,
     })),
     recent: sortedBySaved.slice(0, 5),
   };

@@ -9,6 +9,9 @@ export async function GET() {
       db.category.findMany({ orderBy: { order: "asc" } }),
       db.tag.findMany({ orderBy: { createdAt: "asc" } }),
       db.note.findMany({
+        // S5: the export covers the live library — trashed notes are on their
+        // 7-day way out and are not part of the durable dataset.
+        where: { deletedAt: null },
         orderBy: { savedAt: "desc" },
         include: { tags: { include: { tag: true } } },
       }),

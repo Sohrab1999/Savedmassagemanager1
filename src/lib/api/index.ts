@@ -24,6 +24,7 @@ function buildNotesQuery(filters: NoteFilters): string {
   if (filters.favorite) params.set("favorite", "true");
   if (filters.archived !== undefined)
     params.set("archived", String(filters.archived));
+  if (filters.trash) params.set("trash", "true");
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.pageToken) params.set("pageToken", filters.pageToken);
   if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
@@ -45,6 +46,8 @@ export const apiRoutes = {
     }),
   deleteNote: (id: string) =>
     api<{ ok: true }>(`/api/notes/${id}`, { method: "DELETE" }),
+  restoreNote: (id: string) =>
+    api<{ ok: true }>(`/api/notes/${id}/restore`, { method: "POST" }),
 
   listCategories: () => api<{ items: CategoryDTO[] }>("/api/categories"),
   createCategory: (input: {

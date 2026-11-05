@@ -21,7 +21,13 @@ import {
 } from "firebase/auth";
 import {
   connectFirestoreEmulator,
+  disableNetwork,
+  enableNetwork,
   getFirestore,
+  initializeFirestore,
+  memoryLocalCache,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   type Firestore,
 } from "firebase/firestore";
 
@@ -70,10 +76,47 @@ function ensureApp(): FirebaseApp {
   return initializeApp(FIREBASE_CONFIG);
 }
 
+// G1 — Offline persistence + multi-tab coordination.
+//
+// persistentLocalCache keeps the user's Firestore data in IndexedDB, so the
+// library stays browsable with the network down and writes made offline are
+// queued locally and reconciled when the connection returns.
+// persistentMultipleTabManager shares that cache across tabs and routes
+// writes through one leader, which is what makes the "edit in tab 2 appears
+// in tab 1" behavior work without a refresh.
+//
+// Fallbacks are deliberate and honest:
+//  • SSR (no window) → plain memory cache.
+//  • initializeFirestore re-called after HMR → reuse the existing instance.
+//  • IndexedDB unavailable (private mode) → memory cache (no offline queue).
+function createFirestore(app: FirebaseApp): Firestore {
+  if (typeof window === "undefined") return getFirestore(app);
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch {
+    return getFirestore(app);
+  }
+}
+
 function initialize(): { auth: Auth; db: Firestore } {
   const app = ensureApp();
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  let db: Firestore;
+  try {
+    db = createFirestore(app);
+  } catch {
+    // IndexedDB blocked (private mode): degrade to memory cache — realtime
+    // still works, only the offline queue/persistence is lost.
+    try {
+      db = initializeFirestore(app, { localCache: memoryLocalCache() });
+    } catch {
+      db = getFirestore(app);
+    }
+  }
 
   if (isEmulatorEnabled() && typeof window !== "undefined") {
     const host = getEmulatorHost();
@@ -81,6 +124,15 @@ function initialize(): { auth: Auth; db: Firestore } {
       disableWarnings: true,
     });
     connectFirestoreEmulator(db, host, EMULATOR_FIRESTORE_PORT);
+
+    // DEV-ONLY debug affordance (emulator builds never ship): lets the
+    // offline DoD (browse from cache + queued writes) be exercised from the
+    // browser console / verification tooling without touching real networks.
+    const dbg = window as unknown as Record<string, unknown>;
+    dbg.__savedboxFirestore = {
+      goOffline: () => disableNetwork(db),
+      goOnline: () => enableNetwork(db),
+    };
   }
 
   return { auth, db };

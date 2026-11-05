@@ -45,8 +45,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator as SeparatorUi } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
-import { useNote, useCategories, useTags, useUpdateNote, useDeleteNote } from "@/hooks/queries";
+import {
+  useNote,
+  useCategories,
+  useTags,
+  useUpdateNote,
+  useDeleteNote,
+  useRestoreNote,
+} from "@/hooks/queries";
 import { dataSource } from "@/services/data-source";
+import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/stores/app-store";
@@ -180,6 +188,7 @@ export function NoteDetailSheet() {
   const tagsQuery = useTags();
   const updateNote = useUpdateNote();
   const deleteNote = useDeleteNote();
+  const restoreNote = useRestoreNote();
 
   const note = noteQuery.data;
   const categories = categoriesQuery.data?.items ?? [];
@@ -279,6 +288,18 @@ export function NoteDetailSheet() {
     if (ok) {
       setEditing(false);
       toast.success(t("note.detail.changesSaved"));
+    }
+  };
+
+  // S5 — undo: pulls the note out of the trash (7-day window; the KPI
+  // counter records every undo).
+  const restoreFromTrash = async (id: string) => {
+    try {
+      await restoreNote.mutateAsync(id);
+      recordUndo();
+      toast.success(t("note.detail.restored"));
+    } catch {
+      toast.error(t("toast.error"));
     }
   };
 
@@ -573,15 +594,28 @@ export function NoteDetailSheet() {
                   </a>
                 </Button>
               ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                className="ms-auto gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
-                onClick={() => setConfirmDelete(true)}
-              >
-                <Trash2 className="size-4" aria-hidden="true" />
-                {t("note.detail.delete")}
-              </Button>
+              {note.deletedAt ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ms-auto gap-1.5 border-primary/50 text-primary hover:bg-primary/10"
+                  disabled={restoreNote.isPending}
+                  onClick={() => restoreFromTrash(note.id)}
+                >
+                  <ArchiveRestore className="size-4" aria-hidden="true" />
+                  {t("note.detail.restore")}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ms-auto gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  {t("note.detail.delete")}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -601,10 +635,19 @@ export function NoteDetailSheet() {
               className="bg-destructive text-white hover:bg-destructive/90"
               onClick={async () => {
                 if (!note) return;
+                const trashedId = note.id;
                 try {
-                  await deleteNote.mutateAsync(note.id);
-                  toast.success(t("note.detail.deleted"));
+                  await deleteNote.mutateAsync(trashedId);
+                  recordDeletion();
                   closeNote();
+                  // S5 — success toast with the 7-second «بازگردانی» window.
+                  toast.success(t("toast.noteTrashed"), {
+                    duration: 7000,
+                    action: {
+                      label: t("common.restore"),
+                      onClick: () => void restoreFromTrash(trashedId),
+                    },
+                  });
                 } catch {
                   toast.error(t("toast.error"));
                 }

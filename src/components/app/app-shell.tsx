@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bookmark, Loader2, Plus } from "lucide-react";
 import { AppHeader } from "@/components/app/header";
 import { BottomNav, SidebarNav } from "@/components/app/nav";
@@ -12,6 +13,7 @@ import { QuickCapture } from "@/components/app/quick-capture";
 import { NoteDetailSheet } from "@/components/app/note-detail-sheet";
 import { AuthGate } from "@/components/app/auth-gate";
 import { useAuth } from "@/hooks/use-auth";
+import { realtimeStore } from "@/services/realtime";
 import { bindHashNavigation, useAppStore } from "@/stores/app-store";
 import { useI18n } from "@/lib/i18n";
 
@@ -35,9 +37,38 @@ export function AppShell() {
   const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
   const { t } = useI18n();
   const { authReady, user, demoMode } = useAuth();
+  const queryClient = useQueryClient();
 
   // Browser back/forward support for in-app view switching (single-route SPA).
   useEffect(() => bindHashNavigation(), []);
+
+  // G1 — realtime bridge. ONE session-scoped listener set serves the whole
+  // app; this effect owns its lifecycle (start on sign-in, stop on
+  // sign-out/UID change/unmount) and forwards store updates into the React
+  // Query cache (coalesced) so every view re-renders without refreshes.
+  // The refcounted subscription here is the only component-level listener —
+  // unmounting cleans it up, so no leak is possible from any view.
+  const userUid = user?.uid ?? null;
+  useEffect(() => {
+    if (!userUid) {
+      realtimeStore.stop();
+      return;
+    }
+    realtimeStore.start(userUid);
+    let scheduled = false;
+    const unsubscribe = realtimeStore.subscribe(() => {
+      if (scheduled) return;
+      scheduled = true;
+      setTimeout(() => {
+        scheduled = false;
+        void queryClient.invalidateQueries();
+      }, 50);
+    });
+    return () => {
+      unsubscribe();
+      realtimeStore.stop();
+    };
+  }, [userUid, queryClient]);
 
   if (!authReady) {
     return <AuthSplash />;

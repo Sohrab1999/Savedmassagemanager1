@@ -57,6 +57,11 @@ export const dataSource = {
       ? repository.deleteNote(id)
       : apiRoutes.deleteNote(id),
 
+  restoreNote: (id: string): Promise<{ ok: true }> =>
+    getCurrentUser()
+      ? repository.restoreNote(id)
+      : apiRoutes.restoreNote(id),
+
   listCategories: (): Promise<{ items: CategoryDTO[] }> =>
     getCurrentUser()
       ? repository.listCategories()

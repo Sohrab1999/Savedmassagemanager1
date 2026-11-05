@@ -54,6 +54,7 @@ export function toNoteDTO(note: NoteWithRelations): NoteDTO {
     })),
     isFavorite: note.isFavorite,
     isArchived: note.isArchived,
+    deletedAt: note.deletedAt ? note.deletedAt.toISOString() : null,
     savedAt: note.savedAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
   };
@@ -66,6 +67,8 @@ export interface ListNotesQuery {
   tagIds?: string[];
   favorite?: boolean;
   archived?: boolean;
+  /** S5 — trash view: list ONLY soft-deleted notes when true. */
+  trash?: boolean;
   sort?: string;
   pageToken?: string;
   pageSize?: number;
@@ -75,9 +78,24 @@ export interface ListNotesQuery {
 export const NOTES_PAGE_SIZE = 30;
 const MAX_PAGE_SIZE = 100;
 
+/** S5 — hard-delete notes that have been in the trash for 7+ days. Runs
+ * lazily before every list (the demo equivalent of the realtime store's
+ * client-side sweep in cloud mode). */
+async function purgeExpiredTrash(): Promise<void> {
+  await db.note.deleteMany({
+    where: { deletedAt: { lt: new Date(Date.now() - 7 * 86_400_000) } },
+  });
+}
+
 export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse> {
+  await purgeExpiredTrash();
+
   const where: Prisma.NoteWhereInput = { AND: [] };
   const and = where.AND as Prisma.NoteWhereInput[];
+
+  // S5 — the default views never show trashed notes; the trash view shows
+  // only them. Archived/favorite/type filters compose inside the view.
+  and.push(query.trash ? { deletedAt: { not: null } } : { deletedAt: null });
 
   const q = query.q?.trim();
   if (q) {
@@ -220,9 +238,19 @@ export async function updateNote(
   return toNoteDTO(note);
 }
 
+/** S5 — soft delete: the note moves to the trash (deletedAt set) and is
+ * recoverable for 7 days; the lazy purge removes it permanently afterwards. */
 export async function deleteNote(id: string): Promise<boolean> {
   const existing = await db.note.findUnique({ where: { id }, select: { id: true } });
   if (!existing) return false;
-  await db.note.delete({ where: { id } });
+  await db.note.update({ where: { id }, data: { deletedAt: new Date() } });
+  return true;
+}
+
+/** S5 — undo: leaves the trash (deletedAt cleared). */
+export async function restoreNote(id: string): Promise<boolean> {
+  const existing = await db.note.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return false;
+  await db.note.update({ where: { id }, data: { deletedAt: null } });
   return true;
 }

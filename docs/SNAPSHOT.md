@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 21 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 22 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v21 status: ROADMAP PHASE 2 (Data Foundation Repair) COMPLETE — S7/S8/S1/S4/S3 all implemented, DoD-verified (S8+S1 live on the Firebase Emulator), final full-app regression clean.** Next: owner decides Phase 3 (G1 realtime+offline recommended per roadmap §8).
+> **v22 status: ROADMAP PHASE 3 IN PROGRESS — G1 (Realtime + Offline) DONE and DoD-verified (demo + live Firebase Emulator, incl. two-tab, second-device, offline queue & sync). Next in the phase: S5 (undo-delete) → S2 (capture unification).**
 
 ---
 
@@ -17,92 +17,99 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Roadmap Phase 2 — Data Foundation Repair COMPLETE (2026-11-05; owner order executed in full).** All 5 items DoD-verified; final regression clean. After each step: full SNAPSHOT update + commit + push + SHA-parity proof (standing owner mandate). |
-| Development status | **Full application implemented and running** (see §2). **Roadmap Phase 2 COMPLETE.** |
-| Next allowed step | Await owner's order for **Phase 3** (G1 realtime+offline — recommended per roadmap §8; then S5 undo-delete, S2 capture unification). Evidence: `roadmaps/evidence/qe*.png` (P1), `s7/s1/s3/s4/final-regression-*.png` (P2); S8 was emulator-probe-based (probes gitignored by design). |
+| **Current gate** | **Roadmap Phase 3 — Experience Leap (owner order, in progress).** G1 ✅ done+verified (step 22). S5 and S2 remain. After each step: full SNAPSHOT update + reference-doc updates + commit + push + SHA-parity proof (standing owner mandate). |
+| Development status | **Full application implemented and running** (see §2). **Phases 1–2 COMPLETE. Phase 3: G1 done.** |
+| Next allowed step | **S5 — Undo delete** (soft delete `deletedAt` + 7 s toast Undo + Trash filter + 7-day purge + undo-rate metric), then **S2 — capture unification** (shared tag chips + paste-link detection). Evidence: `roadmaps/evidence/g1-*.png` (5 shots), plus P1/P2 evidence sets. |
 
 ## 2. Implemented Capabilities
 
 **Full dual-mode product, running on `bun run dev` (port 3000):**
 
-- **Auth gate** (`src/components/app/auth-gate.tsx` + `src/hooks/use-auth.tsx`): email/password sign-in & sign-up, honest "continue in demo mode" entry, emulator badge, not-configured fallback (this deployment has no real Firebase env → cloud sign-in explicitly declared unavailable; demo mode offered).
+- **Auth gate** (`src/components/app/auth-gate.tsx` + `src/hooks/use-auth.tsx`): email/password sign-in & sign-up, honest "continue in demo mode" entry, emulator badge, not-configured fallback (this deployment has no real Firebase env → cloud sign-in works against the LOCAL Emulator Suite; production values absent).
 - **Four-view IA with hash navigation** (`#/dashboard`, `#/library`, `#/categories`, `#/settings`; deterministic SSR view, hash re-synced post-hydration — `src/stores/app-store.ts`):
   - **Dashboard**: greeting, quick-capture banner, 4 stat cards, category tiles (click → filter library), type distribution bars, recent items.
-  - **Library**: search (300 ms debounce), filter toolbar (**QE2 (v10)**), type/favorite/archived/category/tags filters, **QE5 (v13): active-filters bar**, type-aware note cards, loading/empty/no-results/error states, **S1 (v18): paginated results — 30/page + «نمایش بیشتر / Load more ({n} remaining)»**; **S3 (v20): filters in the URL hash** `#/library?q=…&type=…&cat=…&tags=…&fav=1&arch=1&sort=…` — deep-link in a fresh navigation yields identical results, refresh preserves filters, back/forward restores them (replaceState for filter refinements, pushState for view changes; malformed values ignored; QE3 flow lands on `#/library?cat=…`; layout stays device-local).
-  - **Categories**: category CRUD dialog (name/nameFa/icon/color) + tags tab (create/filter/delete); **QE3 (v11): category cards are clickable** (`setFilters({categoryId}) + setView('library')`, same affordance as dashboard tiles), keyboard-accessible (role=button + Enter/Space), ⋯ menu isolated via stopPropagation; new i18n keys `a11y.openCategory` (fa+en).
-  - **Settings**: profile, theme, language, JSON export, demo-data reset (demo-mode only, honestly scoped), environment/about.
-- **Quick capture dialog** (`src/components/app/quick-capture.tsx`): 5 content types (text/link/image/video/file), title/content/url/mediaUrl, category, comma-separated tags (fa+en comma); **QE6 (v14): error-prevention save flow** — unified `saveDisabledReason` (title / text-content / link-URL) drives the save button's disabled state + `title` attr + a visible dynamic hint (`role=status`) under the title field; static `capture.titleHint` when form valid; verified end-to-end for text & link types (3 test saves via UI, then deleted via API — demo data restored to 21 visible items).
-- **Note detail sheet** (`src/components/app/note-detail-sheet.tsx`): metadata, description editing (persisted), **S4 (v19): title/content editing** — pencil → edit mode (title Input maxLength 200 with causal disabled-save + content Textarea for text-bearing notes, Save/Cancel with restore, read-only preview hidden while editing); verified persisting after reload in BOTH demo and cloud-emulator modes (`s4-*.png`); new key `note.detail.changesSaved`; tag add/remove via datalist, favorite/archive/delete (confirm), open original, copy content.
-- **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; **QE1 (v9): list rows show snippet AND relative saved-date together (date pinned to row end, logical `ms-auto`); verified fa-RTL + en-LTR @1280px and no-overflow @320px (`roadmaps/evidence/qe1-after-*.png`).** **QE4 (v12): shared `TagChips` component renders up to 2 tag chips + Persian-digit `+N` overflow on grid cards (between snippet and meta row) and list rows (below snippet line); renders null when note has no tags (no layout shift); verified incl. +۱ path (`roadmaps/evidence/qe4-*.png`, demo data reseeded after the +N probe).**
-- **Dual-mode data source** (`src/services/data-source.ts`): authenticated → Firestore repository (`src/services/repository.ts`, per-UID `users/{uid}/…`); else → demo API over Prisma/SQLite (sample data, honestly labeled).
-- **S7 read consolidation (v16, Cloud repository):** session **notes snapshot** — `getNotesSnapshot()` (module memory, TTL 60 s, in-flight dedup, invalidated by every write) feeds `getStats`, `listCategories`, `listTags`, and `updateCategory` note-counts. Read accounting (Cloud, code-level): before = dashboard 2 full downloads / library mount 3; after = **≤ 1 per view combination per 60 s window**. Live Network-panel proof requires the frozen Firebase env (§8). `useInvalidateNotes` also invalidates `categories`/`tags` now (note mutations change their counts).
-- **S8 batched writes (v17, Cloud repository):** `batchedUpdate` (chunked writeBatch, 500 ops/chunk) powers all three fan-outs (category rename/delete, tag delete with `arrayRemove`); `resolveTagRefs` = one `where(name in names)` query (≤30, matching the rules' tag cap) + missing tags created in ONE batch (`batchedCreateTags`, client-allocated IDs). **Emulator-verified:** rename 60-note category = 1 batch commit, 60/60 updated, 0 stale; tag resolve + tag-delete fan-out probes PASS; `scripts/rules-test.ts` **39/39 green** on the same emulator.
-- **S1 server-side pagination (v18, both modes):** contract `{items, total, nextCursor}` + `pageToken/pageSize`; demo = Prisma skip/take+count (silent `take:300` removed); cloud = **structured path** (`where/orderBy/limit(30)/startAfter` docRef-cursor + `getCountFromServer` exact total) when no q/tag filter, **snapshot path** (shared S7 full read + client filterAndSort, offset pages) for q/tags — exact semantics both paths; `fetchAllNotes` and the 500 cap are **gone from the codebase**. UI: `useInfiniteQuery` + Load more button (fa/en). **Verified live:** demo @623 items (search 79 exact, last page 5+null cursor) and **cloud @601 items on the emulator** (counter ۵۵۵ exact, cursor paging, matrix link=111/fav=50/title-ASC matches demo & REST ground truth; a real title-DESC divergence was found and fixed; duplicate React keys from `placeholderData` fixed). `rules-test.ts` 39/39. `firestore.indexes.json`: 11 composite indexes declared for production. Scale seeding: `POST /api/seed {extraNotes≤1000}` (default 0).
-- **Firebase integration (emulator-verified)**: `src/services/firebase.ts` (env-driven init, Auth :9099 / Firestore :8080 hooks), `firestore.rules` (owner-only writes, field validation, catch-all deny), `firestore.indexes.json`, `scripts/rules-test.ts` (**39/39 pass**), `scripts/e2e-verify.sh` (**15/15 browser E2E pass**).
-- **i18n/RTL**: type-safe flat dictionaries fa+en (`src/lib/i18n/dictionaries.ts` — fa is the default), `dir` synced to locale, Persian digits via formatters, Vazirmatn font.
-- **Platform compliance**: single user-visible route `/` (`src/app/page.tsx`); API routes under `src/app/api/**` (demo data source); sticky-footer layout rules; shadcn/ui New York components only.
+  - **Library**: search (300 ms debounce), filter toolbar (QE2), type/favorite/archived/category/tags filters, QE5 active-filters bar, **S1 (v18): paginated results — 30/page + «نمایش بیشتر / Load more ({n} remaining)»**; **S3 (v20): filters in the URL hash** `#/library?q=…&type=…&cat=…&tags=…&fav=1&arch=1&sort=…` (deep-link/refresh/back-forward verified); layout stays device-local.
+  - **Categories**: category CRUD dialog + tags tab (create/filter/delete); QE3 clickable category cards (keyboard-accessible, ⋯ isolated).
+  - **Settings**: profile, theme, language, JSON export, demo-data reset (demo-only), environment/about.
+- **Quick capture dialog** (`src/components/app/quick-capture.tsx`): 5 content types, title/content/url/mediaUrl, category, comma-separated tags; **QE6 (v14): error-prevention save flow** (causal disabled-state hint).
+- **Note detail sheet** (`src/components/app/note-detail-sheet.tsx`): metadata, description editing, **S4 (v19): title/content editing** (pencil → Input+Textarea, causal disabled save, persists in BOTH modes); tag add/remove via datalist, favorite/archive/delete (confirm), open original, copy content.
+- **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; QE1 list rows (snippet + relative date, `ms-auto`); QE4 shared `TagChips` (max 2 + Persian `+N`).
+- **Dual-mode data source** (`src/services/data-source.ts`): authenticated → Firestore repository; else → demo API over Prisma/SQLite (sample data, honestly labeled).
+- **G1 REALTIME + OFFLINE (v22, the phase-3 core, Cloud mode):**
+  - **`src/services/firebase.ts`** initializes Firestore with `persistentLocalCache({ tabManager: persistentMultipleTabManager() })` — IndexedDB persistence (browse offline, queued writes reconcile on reconnect) + multi-tab coordination. Fallbacks: SSR → `getFirestore`; HMR re-init → existing instance; IndexedDB blocked → `memoryLocalCache`. DEV-ONLY debug hook `window.__savedboxFirestore.{goOffline,goOnline}` (emulator builds only).
+  - **`src/services/realtime.ts` (NEW)** — `realtimeStore`: THREE permanent uncapped `onSnapshot` listeners per UID (notes/categories/tags) replacing EVERY one-shot read; exposes live arrays + `ensureReady()` + `subscribe`/version + `getNoteById` + `mapNote`; includes the S5 7-day trash purge (batched, once per session).
+  - **`src/services/repository.ts`** — reads derive from the live store (listNotes = 30-page presentation over the full local array; stats/categories/tags = joins; loadCategoryRef/resolveTagRefs live-first with getDoc fallbacks). The S1 structured-query path is DELETED (superseded — guarantees preserved: uncapped, exact totals, demo-parity sorts). Fan-outs target the live array → read-free and UNCAPPED (MAX_NOTES_FETCH=500 lookup cap gone).
+  - **`src/components/app/app-shell.tsx`** — realtime bridge: start on sign-in, coalesced (50 ms) `queryClient.invalidateQueries()` on every snapshot, full teardown on unmount/UID change/sign-out. Single component-level listener → no unmount leak.
+  - **`src/hooks/queries.ts`** — demo mode polls every 2 s (notes/stats/categories/tags, active tab only); cloud never polls.
+  - **DoD verified live (2026-11-05):** second-device REST write appears without refresh; tab2-UI-write → tab1 without refresh; browser-offline write survives reload and syncs on reconnect; SDK-offline: cache browsing + local latency-compensation display + server stays stale until `goOnline()` then syncs. Evidence: `roadmaps/evidence/g1-*.png` (5 files). Rules 39/39 after `deletedAt` whitelist.
+- **S7→S8→S1→S4→S3 (Phase 2, v16–v20) remain in force**, with two G1-era updates: (a) the S7 TTL snapshot and S1 cloud structured path were REPLACED by the G1 live store (read accounting now = exactly 1 uncapped listener per session, zero per-view downloads); (b) fan-outs no longer have the 500-note lookup cap.
+- **Firebase integration (emulator-verified)**: `src/services/firebase.ts`, `firestore.rules` (owner-only, field validation incl. optional `deletedAt`, catch-all deny), `firestore.indexes.json`, `scripts/rules-test.ts` (**39/39 pass** on the updated rules), `scripts/e2e-verify.sh` (15/15 at Firebase-phase time).
+- **i18n/RTL**: type-safe flat dictionaries fa+en (`src/lib/i18n/dictionaries.ts` — fa default), `dir` synced, Persian digits, Vazirmatn.
+- **Platform compliance**: single user-visible route `/`; API routes under `src/app/api/**`; sticky-footer rules; shadcn/ui New York only.
 
 ## 3. Architecture & Technical Contracts (binding)
 
 - **Framework:** Next.js 16 App Router + TypeScript 5 (non-negotiable). Only route: `/`. API routes (`src/app/api/**`), not server actions.
-- **Styling:** Tailwind CSS 4 + shadcn/ui; RTL-first; logical CSS properties (`ps/pe/ms/me/start/end`) mandatory; no indigo/blue unless owner asks; responsive mobile-first; sticky footer (`min-h-screen flex flex-col` + footer `mt-auto`).
-- **Data (dual-mode):** authenticated = Firestore per-UID; unauthenticated = Prisma/SQLite demo (`db/custom.db`, untracked; `bun run db:push`; `.env` `DATABASE_URL=file:/home/z/my-project/db/custom.db` + **Firebase emulator placeholders (restored v18)** — demo project `demo-savedbox`, emulator-only, no production credentials). **S1 (v18): notes list is paginated (30/page) in BOTH modes; the 500 cap no longer exists anywhere; cloud q/tag filtering runs over the shared uncapped S7 snapshot (Firestore web SDK has no substring search; documented in repository.ts header).**
-- **Firebase Emulator Suite is runnable in-sandbox and was used for LIVE cloud-mode verification (v18):** `bunx firebase-tools emulators:start --only auth,firestore --project demo-savedbox` (Auth :9099, Firestore :8080, UI :4000). With `.env` placeholders + `NEXT_PUBLIC_FIREBASE_EMULATOR=true`, the app signs in against the emulator (real cloud mode). Bulk test data via Firestore REST `:commit` with `Authorization: Bearer owner` (emulator rules bypass; document names must be full `projects/…/documents/…` paths). Probe scripts live in `tool-results/` (gitignored) — the owner's no-test-code rule is honored (nothing committed).
-- **State:** Zustand (`src/stores/app-store.ts` — view/detailNoteId/captureOpen/filters) + TanStack Query (`src/hooks/queries.ts` — UID-scoped keys, dispatch through data-source).
-- **Firebase:** env-driven (`NEXT_PUBLIC_FIREBASE_*`); emulator flag `NEXT_PUBLIC_FIREBASE_EMULATOR=true`. UID always derived from verified Auth state inside repository, never from callers. **Never store credentials in the repo.** Emulator Suite runnable in-sandbox: `bunx firebase-tools emulators:start --only auth,firestore` (Auth :9099, Firestore :8080, UI :4000; first-run JAR cached in `~/.cache/firebase/emulators/`).
-- **i18n:** add every new UI string to BOTH `en` and `fa` in `src/lib/i18n/dictionaries.ts` (type-checked parity); use `t()`; Persian digits via `formatNumber`/`formatDate`/`formatRelativeTime` (`src/lib/format.ts`).
-- **Dev/ops:** `bun run dev` (3000, logs → `dev.log`); never `bun run build`; never write test code (owner instruction); single external port via Caddy (`?XTransformPort=`) — not used by this app so far.
-- **Phase-1 constraint:** Quick Wins must not change architecture (no query-model, batching, or data-layer redesign — those are Phase 2 S1/S7/S8).
+- **Styling:** Tailwind CSS 4 + shadcn/ui; RTL-first; logical CSS properties mandatory; no indigo/blue unless owner asks; responsive mobile-first; sticky footer.
+- **Data (dual-mode):** authenticated = Firestore per-UID (`users/{uid}/…`); unauthenticated = Prisma/SQLite demo (`db/custom.db`, untracked; `bun run db:push`). **G1 contract: cloud reads ALWAYS come from `realtimeStore` (repository starts it idempotently and awaits `ensureReady()`); UI pagination is presentation over the full local set; demo list remains server-paginated (30/page) with 2 s polling.**
+- **Firebase Emulator Suite (running in-sandbox for cloud verification):** `bunx firebase-tools emulators:start --only auth,firestore --project demo-savedbox` (Auth :9099, Firestore :8080, UI :4000). `.env` has emulator placeholders + `NEXT_PUBLIC_FIREBASE_EMULATOR=true`. Bulk data via Firestore REST `:commit` with `Authorization: Bearer owner`; REST field encoding gotcha: nullable strings MUST be `{"nullValue": null}` (not `{"stringValue": null}`). Probe UID (this session): `94ZKYTmgH7xJibbkfR0RUY7vPDDT` (`tool-results/g1-probe-uid.txt`, untracked).
+- **State:** Zustand (view/detailNoteId/captureOpen/filters) + TanStack Query (UID-scoped keys; invalidations from mutations AND the realtime bridge).
+- **Firebase:** env-driven; UID always derived from verified Auth state; **never store credentials in the repo.**
+- **i18n:** every new UI string in BOTH `en` and `fa` (`src/lib/i18n/dictionaries.ts`); `t()`; Persian digits via `src/lib/format.ts`.
+- **Dev/ops:** `bun run dev` (3000, logs → `dev.log`); never `bun run build`; never write test code (owner instruction); rules-test/e2e scripts are verification scripts run on demand.
+- **Phase-3 note:** G1 intentionally supersedes S1's cloud structured-query path (documented in repository.ts header) — the owner's roadmap orders realtime as the replacement of one-shot reads.
 
 ## 4. Product Decisions State
 
-- D1–D12 (product) APPROVED 2026-11-04; D14–D16 final rulings APPROVED; D13 (GitHub backup) APPROVED & DONE; D17 (dark-mode scope) PENDING — factual check recorded (brief lists Light/Dark).
-- A1–A8 assumptions UNRESOLVED (silence ≠ approval; scheduled for Phase 0 W7 review).
-- AD1–AD12 architecture decisions OPEN — Phase 2.
-- **Owner mandate 2026-11-05 (this session, binding):** execute roadmap Phase 1 Quick Wins; after **every** step, full SNAPSHOT refresh + reference-doc updates + commit + push + `ls-remote` parity proof; acceptance criterion = fresh-clone recoverability without chat history. See §Protocol.
+- D1–D12 (product) APPROVED 2026-11-04; D14–D16 final rulings APPROVED; D13 (GitHub backup) APPROVED & DONE; D17 pending.
+- A1–A8 assumptions UNRESOLVED (silence ≠ approval; Phase 0 W7 review).
+- AD1–AD12 architecture decisions OPEN — addressed per phase as implemented.
+- **Owner mandate 2026-11-05 (binding, re-issued with Phase 2/3 orders):** execute roadmap phases; after **every** step, full SNAPSHOT refresh + reference-doc updates + commit + push + `ls-remote` parity proof; acceptance = fresh-clone recoverability without chat history. «صرفاً نوشتن Snapshot کافی نیست» — snapshot, docs, commit AND push must each be evidenced.
 
 ## 5. Data Structure
 
-- **Shared DTOs** (`src/lib/domain/types.ts`): `NoteDTO` (type text|link|image|video|file, title, content, description, url, mediaUrl, fileName, fileSize, mediaDuration, sourceChat, sourceType manual|telegram, categoryId+category ref, tags ref[], isFavorite, isArchived, savedAt, updatedAt), `CategoryDTO` (slug, name, nameFa, icon, color, order, noteCount), `TagDTO` (name, noteCount), `StatsDTO`, `ProfileDTO`, `NoteFilters`, `CreateNoteInput`/`UpdateNoteInput` (title/content updatable server-side — UI editor arrives in Phase 2 S4).
-- **Demo mode:** Prisma/SQLite (`prisma/schema.prisma` — Note/Category/Tag/NoteTag/Profile), sample data seeded.
-- **Cloud mode:** Firestore docs per `src/domain/types.ts` (NoteDoc/CategoryDoc/TagDoc/ProfileDoc) under `users/{uid}/…`.
+- **Shared DTOs** (`src/lib/domain/types.ts`): `NoteDTO` (…, isFavorite, isArchived, **deletedAt: string | null (S5 plumbing, v22)**, savedAt, updatedAt), `CategoryDTO`, `TagDTO`, `StatsDTO`, `ProfileDTO`, `NoteFilters` (+ **`trash?: boolean` (S5 plumbing)**, pageToken/pageSize), `CreateNoteInput`/`UpdateNoteInput`, `NoteListResponse`.
+- **Demo mode:** Prisma/SQLite (`prisma/schema.prisma` — Note/**`deletedAt DateTime?` + `@@index([deletedAt])`**/Category/Tag/NoteTag/Profile), sample data seeded (21 visible items default).
+- **Cloud mode:** Firestore docs per `src/domain/types.ts` (NoteDoc/**`deletedAt?: number | null`**/CategoryDoc/TagDoc/ProfileDoc) under `users/{uid}/…`; rules whitelist `deletedAt` (null | epoch-ms, ≤ now+1d skew).
+- **S5 pending:** soft-delete behavior (deleteNote sets deletedAt), restore path, trash view, demo where-clauses, undo metrics.
 
 ## 6. Dependencies
 
-`package.json` authoritative: next 16.1.1, react 19, prisma 6.11.1, **firebase ^11 (auth + firestore)**, zustand, @tanstack/react-query + react-table, framer-motion, tailwindcss 4, full Radix set via shadcn/ui, sonner (toasts), lucide-react, z-ai-web-dev-sdk 0.0.18 (unused so far). Install with `bun install`.
+`package.json` authoritative: next 16.1.1, react 19, prisma 6.19.2 (client), **firebase ^11 (auth + firestore; persistentLocalCache/persistentMultipleTabManager in use)**, zustand, @tanstack/react-query + react-table, framer-motion, tailwindcss 4, full Radix set via shadcn/ui, sonner (toasts), lucide-react, z-ai-web-dev-sdk 0.0.18 (unused so far). Install with `bun install`.
 
 ## 7. Tests & Quality Status
 
-- **Owner rule: no test code.** `scripts/rules-test.ts` (Firestore rules assertions, 39/39) and `scripts/e2e-verify.sh` (browser E2E, 15/15) are verification scripts from the Firebase phase, run on demand against the emulator.
-- **Lint:** `bun run lint` CLEAN at snapshot v8 baseline AND after every Phase-1 step (QE1–QE7 + final close-out); last run at v15: clean.
-- **Type check:** app code tsc clean at Firebase-phase completion.
-- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **FINAL PHASE-1 REGRESSION (2026-11-05, clean):** all 4 views render (dashboard/library/categories/settings) with 0 `[role=alert]` errors; list view 21/21 rows carry dates; mobile @390 no page overflow + layout toggle in view; `dev.log` free of errors/warnings. Per-item evidence: QE1 fa-RTL@1280 ✓ + en-LTR@1280 ✓ + @320px no-overflow ✓; QE2 toggle in viewport @1280/@390 both languages + before/after shots ✓; QE3 card-click navigation + ⋯ isolation + keyboard ✓; QE4 chips grid+list + geometry + +۱ overflow ✓; QE5 hidden-by-default/sync/remove/clear-all ✓; QE6 causal disable for text & link first-save journeys ✓.
+- **Owner rule: no test code.** `scripts/rules-test.ts` (Firestore rules assertions — **39/39 PASS after the G1 rules change**) and `scripts/e2e-verify.sh` (15/15 at Firebase-phase time) are verification scripts run on demand against the emulator (`bun scripts/rules-test.ts` — run with bun, NOT tsx; tsx trips a rules-unit-testing type quirk).
+- **Lint:** `bun run lint` CLEAN after every step through v22.
+- **Type check:** `bunx tsc --noEmit` — no errors under `src/` (pre-existing noise only in `examples/`, `skills/`, `tool-results/`).
+- **Browser verification (mandatory per step):** agent-browser @1280/390, fa+en. G1 evidence: `roadmaps/evidence/g1-demo-second-device-appears.png`, `g1-cloud-second-device-appears.png`, `g1-tab2-to-tab1-no-refresh.png`, `g1-sdk-offline-browse.png`, `g1-offline-queue-synced.png`. View-switch sweep clean, page errors none, `dev.log` clean.
 
 ## 8. Limitations & Honesty Ledger (what this repo can NOT restore alone)
 
 | Item | Status | Cause | Recovery |
 |---|---|---|---|
-| **Push credential for `origin` (GitHub)** | 🚫 **ABSENT — origin push BLOCKED** | Security closure 2026-11-04: chat-exposed PAT removed from sandbox and store emptied; owner must revoke old PAT and issue a fine-grained PAT (this repo, Contents: R/W). Re-tested 2026-11-05: `git push --dry-run origin main` → `could not read Username` (no env token, no `~/.git-credentials`, no netrc, upload/ empty). | Owner: `printf 'https://<user>:<PAT>@github.com\n' \| git credential approve` per `docs/ENVIRONMENT.md` §5, then `git push origin main` — ALL local commits (including every Phase-1 step) are already committed and queued on `main`, so ONE push syncs everything. Until then, GitHub holds state up to `e5898b2` only. |
-| `origin` (GitHub) content currency | ⚠️ **Frozen at `e5898b2`** | No credential (row above) | Everything after `e5898b2` — the ENTIRE Savedbox app, Firebase integration, this roadmap, SNAPSHOT v8, all Phase-1 commits — exists **only in this sandbox + the local `backup` mirror** until the owner pushes. This is the single biggest recovery gap; flagged per owner requirement #8. |
-| Bare mirror `backup` remote | ⚠️ **RECREATED 2026-11-05** (`/home/z/my-project-backup.git`, fresh `git init --bare`) — was destroyed by the earlier platform rollback | Same-filesystem only | Survives project-dir loss, NOT total sandbox destruction. Pushed every step; parity proven via `git ls-remote backup`. |
-| `db/custom.db` contents | ⚠️ Local runtime file (untracked) | Runtime DB (demo sample + any demo edits) | Recreated by `bun run db:push` (empty schema) — demo sample data reseeded by API; not product data loss (cloud mode holds real data). |
-| Real-Firebase env values | 🚫 Not present | Owner's Firebase console values never supplied to sandbox | Emulator placeholders in `.env`; production cloud persistence NOT verified (honest per Firebase-phase report). |
-| Dev server, emulator processes | ⚠️ Not persistent | Process state | `bun run dev`; `bun run emulators` for Firebase suite. |
+| **Push credential for `origin` (GitHub)** | 🚫 **ABSENT — origin push BLOCKED** | Security closure 2026-11-04: chat-exposed PAT removed; owner must revoke old PAT and issue a fine-grained PAT (this repo, Contents: R/W). Re-tested 2026-11-05: `git push --dry-run origin main` → `could not read Username`. | Owner: `printf 'https://<user>:<PAT>@github.com\n' \| git credential approve` per `docs/ENVIRONMENT.md` §5, then `git push origin main` — ALL commits (entire app + Phases 1–3 so far) are queued on `main`; ONE push syncs everything. Until then GitHub holds state up to `e5898b2` only. |
+| `origin` (GitHub) content currency | ⚠️ **Frozen at `e5898b2`** | No credential (row above) | Everything after `e5898b2` exists **only in this sandbox + the local `backup` mirror** until the owner pushes. Single biggest recovery gap; flagged per owner requirement #8. |
+| Bare mirror `backup` remote | ⚠️ Same-filesystem only (`/home/z/my-project-backup.git`) | Survives project-dir loss, NOT total sandbox destruction | Pushed every step; parity proven via `git ls-remote backup` (see §9). |
+| `db/custom.db` contents | ⚠️ Local runtime file (untracked) | Runtime DB | Recreated by `bun run db:push`; demo sample reseeded via `POST /api/seed`; not product data loss. |
+| Real-Firebase env values | 🚫 Not present | Owner's console values never supplied | Emulator placeholders in `.env`; production cloud persistence NOT verified (honest). |
+| Emulator data (probe user + G1 test docs) | ⚠️ Ephemeral emulator state (untracked) | Emulator suite is runtime-only | Recreate anytime: start emulators, sign up a fresh user via UI; G1 tests are re-runnable (worklog Step 22 documents the exact commands). |
+| Dev server, emulator processes | ⚠️ Not persistent | Process state | `bun run dev`; `bunx firebase-tools emulators:start --only auth,firestore --project demo-savedbox`. |
 | `~/.agents/skills/*` | ⚠️ Outside repo | Install-to-home by design | Reinstall per `docs/ENVIRONMENT.md` §4. |
-| Chat-only knowledge | ✅ Eliminated | — | All decisions/docs persisted in `docs/` + `roadmaps/`. |
+| Chat-only knowledge | ✅ Eliminated | — | All decisions/docs persisted in `docs/` + `roadmaps/` + `worklog.md`. |
 
-**Acceptance criterion status (owner 2026-11-05): PARTIALLY MET — honestly scoped.** A fresh clone of GitHub restores the project **up to `e5898b2`** (docs phase). Everything after that is recoverable only from this sandbox (local disk + `backup` mirror). **The gap is caused by the absent push credential, which only the owner can supply; every local commit is queued and push-ready.** No false parity claims are made.
+**Acceptance criterion status (owner 2026-11-05): PARTIALLY MET — honestly scoped.** A fresh clone of GitHub restores the project **up to `e5898b2`**; everything after is recoverable only from this sandbox (local disk + `backup` mirror) until the owner supplies the push credential. Every local commit is queued and push-ready. No false parity claims.
 
 ## 9. Git State (verify live with the commands below — a commit cannot contain its own SHA)
 
-| Field | Value at snapshot v8 |
+| Field | Value at snapshot v22 |
 |---|---|
 | Branch | `main` (only branch) |
-| Working tree | clean at last check |
+| Working tree | clean at last check (post-G1 commit) |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
-| Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v21 | see `git rev-parse HEAD`; chain: Phase 1 `…`→`803dfae` → S7 `6273298` → S8 `4bf21a2` → S1 `5f9d004` → S4 `6f392d2` → S3 `49ccb44` → **close-out commit (see live rev-parse)** — 20+ commits ahead of frozen origin |
-| Phase status | **Phase 1: ✅ COMPLETE. Phase 2: ✅ COMPLETE (S7/S8/S1/S4/S3 + close-out).** Phase 3 awaiting owner order |
+| Remote `backup` | bare mirror `/home/z/my-project-backup.git` — pushed + parity proven every step |
+| Local HEAD at v22 | see `git rev-parse HEAD`; chain: …Phase 2 close-out `1dc294b` → **G1 commit (see live rev-parse)** — 25+ commits ahead of frozen origin |
+| Phase status | **Phase 1 ✅ COMPLETE · Phase 2 ✅ COMPLETE · Phase 3: G1 ✅ (step 22) — S5, S2 remaining** |
 
 Authoritative live check:
 
@@ -115,43 +122,29 @@ git rev-parse HEAD && git status --short \
 
 ## 10. Recovery Procedure (fresh environment, no chat history)
 
-1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read; ⚠️ recovers only to `e5898b2` until owner pushes — then fully current).
+1. `git clone https://github.com/Sohrab1999/Savedmassagemanager1.git my-project` (public read; ⚠️ recovers only to `e5898b2` until owner pushes — then fully current). If a local `backup` mirror exists, prefer `git clone /home/z/my-project-backup.git` (fully current).
 2. Read in this order: this file → `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` → `docs/DECISIONS.md` → `docs/PRODUCT_BRIEF.md` (+ `CHANGELOG.md`) → `docs/ROADMAP.md` → `docs/ENVIRONMENT.md` → `worklog.md`.
 3. `bun install` · `.env` (`DATABASE_URL=file:/home/z/my-project/db/custom.db` + `NEXT_PUBLIC_FIREBASE_*` emulator placeholders or real values) · `bun run db:push`.
-4. `bun run dev` → port 3000 (check `dev.log`). Demo mode works immediately; cloud mode needs Firebase env (or `bun run emulators`).
-5. Resume from §1 "Next allowed step" / roadmap checkboxes.
+4. `bun run dev` → port 3000 (check `dev.log`). Demo mode works immediately; cloud mode needs the emulator (`bunx firebase-tools emulators:start --only auth,firestore --project demo-savedbox`) or real Firebase env.
+5. Resume from §1 "Next allowed step" / roadmap checkboxes (Phase 3: S5 → S2).
 
 ## 11. Work Completed (chronological, details in `worklog.md`)
 
-1. Environment prep (UI Pro Max, Impeccable) — E1/E2.
-2. Product Brief v1.0 → full PM audit (C/M/AD/D lists).
-3. Persistence Protocol established; docs/ persisted; `backup` mirror + parity proof.
-4. D1–D12 approved → Brief v1.1; D14–D16 + binding instructions → Brief v1.2; Phase 0 checklist created (DRAFT).
-5. D13: GitHub `origin` configured; full history pushed; parity independently re-verified anonymously; security closure (credential removed; push blocked pending owner PAT).
-6. **Full application build** (`be5caad`): Savedbox — 4-view IA, capture/library/detail/categories/settings, fa-default i18n/RTL, dual-mode demo API.
-7. **Firebase Auth + Firestore integration** (`e214a98`): per-UID repository, rules 39/39, browser E2E 15/15 (emulator-verified), honest config status.
-8. **Feature X deep analysis** (2026-11-05): 12 live screenshots + full code re-read → `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` (11-section analyst template, phases 1–5, scoring, Keep/Change/Remove).
-9. **Phase 1 Quick Wins started** (owner mandate 2026-11-05): baseline evidence captured (`roadmaps/evidence/qe2-before-*.png` @1280/390px — confirms filter-bar overflow findings); `backup` mirror recreated after rollback destruction; SNAPSHOT rewritten to v8; lint baseline clean.
-10. **QE1 done (step 9):** list-row date restored — `note-card.tsx` list layout now renders snippet + relative date together (`ms-auto` end-pin, no-overflow); verified fa-RTL/en-LTR@1280 + @320px (`roadmaps/evidence/qe1-after-fa-1280.png`, `qe1-after-en-1280.png`, `qe1-after-en-320.png`); SNAPSHOT v9; lint clean; committed & backup parity proven.
-11. **QE2 done (step 10):** library filter toolbar split — sort select + grid/list toggle moved OUT of the horizontal-scroll chip zone into an always-visible stable segment (flex `min-w-0 flex-1` chips area + `shrink-0` controls, no new i18n keys, no architecture change); verified @1280 & @390 fa-RTL + en-LTR (bounding-box in viewport, pageOverflowX=false); before/after evidence `roadmaps/evidence/qe2-*.png`; interaction regression passed (list toggle + QE1 dates intact); SNAPSHOT v10; lint clean; committed & backup parity proven.
-12. **QE3 done (step 11):** category cards in Categories view made clickable — same affordance as dashboard tiles (`setFilters({categoryId}) + setView('library')`); keyboard accessible (role=button + tabIndex + Enter/Space); ⋯ menu isolated (`stopPropagation` on trigger; menu items live in portal, unaffected); new dictionary keys `a11y.openCategory` fa+en; verified in browser: click → `#/library` filtered ("۳ مورد"), ⋯ opens without navigation, Enter-key navigates; SNAPSHOT v11; lint clean; committed & backup parity proven.
-13. **QE4 done (step 12):** `TagChips` added to `note-card.tsx` (shared by grid + list) — max 2 tag chips + `+N` (Persian digits via `formatNumber`), null-render when untagged (no layout shift); verified visually + geometrically (RTL anchoring) + `+۱` overflow path (temp 3-tag probe, demo data reseeded via `POST /api/seed`, tags restored); SNAPSHOT v12; lint clean; committed & backup parity proven.
-14. **QE5 done (step 13):** active-filters bar replaced the tag-only chip section — `ActiveFilterChip` component + bar with per-filter removable chips (q with «quotes», type, category/none, tags, favorite, archived), live counter (Persian digits), clear-all (`resetFilters`); hidden when no filters; new i18n keys `library.activeFilters.count`, `a11y.removeFilter` (fa+en); verified: hidden-by-default ✓, 2-chip + "۲ فعال" state ✓, single-chip removal → "۱ فعال" ✓, clear-all → hidden + ۲۱ مورد ✓ (`roadmaps/evidence/qe5-active-filters.png`); SNAPSHOT v13; lint clean; committed & backup parity proven.
-15. **QE6 done (step 14):** capture save flow made error-preventing — unified `saveDisabledReason` (title→text-content→link-URL) drives disabled state + causal `title` attr + visible dynamic hint (`role=status`) under title; static upfront hint `capture.titleHint` (fa+en) when valid; verified full first-save journeys for text and link types (button states at each stage + success toasts, `qe6-capture-hint.png`/`qe6-after-save.png`); 3 UI-created test notes deleted via API afterwards (demo library back to 21 visible items); SNAPSHOT v14; lint clean; committed & backup parity proven.
-16. **QE7 + PHASE 1 CLOSE-OUT done (step 15):** QE7 — password-reset link registered as a blocker in a new **“Cloud-Go-Live backlog”** section of `docs/ROADMAP.md` (execution only after the owner enables the Email provider in the real Firebase project); roadmap file — all Phase-1 checkboxes ticked with completion annotations + §9 protocol section updated (backup recreated per-step parity; origin push still blocked, all commits queued); **final full-app regression** — all 4 views 0 errors, 21/21 list rows with dates, mobile 390px no overflow + toggle in view, dev.log clean; SNAPSHOT v15; lint clean; committed & backup parity proven.
-17. **Phase 2 opened + S7 done (step 16, owner order):** persistence debt cleared first (`backup` mirror rebuilt + parity `803dfae`; mode-flip noise restored); S7 — `getNotesSnapshot()` shared session snapshot (TTL 60 s + in-flight dedup + write-invalidation) now feeds `getStats`/`listCategories`/`listTags`/updateCategory-noteCount (read accounting: library mount 3→1 downloads, dashboard 2→1); `useInvalidateNotes` extended to categories/tags; live demo regression clean (dashboard/categories/library, `s7-*.png`); SNAPSHOT v16; lint clean; committed `6273298` & backup parity proven.
-18. **S8 done (step 17, emulator-verified):** all three fan-outs → chunked `writeBatch` (`batchedUpdate`, 500 ops/chunk); `resolveTagRefs` → one `in` query + batch tag creation (`batchedCreateTags`); live probes on the Firebase Emulator: 60-note category rename = 1 batch commit 60/60 updated 0 stale, tag resolve + tag-delete PASS; `rules-test.ts` 39/39 green; demo regression clean; SNAPSHOT v17; lint clean; committed `4bf21a2` & backup parity proven.
-19. **S1 done (step 18, the phase's core):** paginated notes (30/page) in both modes; `fetchAllNotes` + 500-cap deleted; cloud structured path (where/orderBy/startAfter + `getCountFromServer`) + snapshot path for q/tags; `useInfiniteQuery` + Load-more UI; title-sort divergence (cloud DESC vs demo ASC) found & fixed; `placeholderData` removed (duplicate-key fix); verified demo @623 + **cloud @601 live on emulator** (full matrix); rules 39/39; 11 composite indexes declared; demo seed restored; SNAPSHOT v18; lint clean; committed `5f9d004` & backup parity proven.
-20. **S4 done (step 19):** title/content editor in the detail sheet (pencil → Input+Textarea, causal disabled save, cancel restores; read-only preview hidden while editing); `note.detail.changesSaved` key; side-fix: filter reset no longer resurrects the search query (debounce resurrection bug); persistence verified after reload in cloud-emulator AND demo modes; demo seed restored; SNAPSHOT v19; lint clean; committed `6f392d2` & backup parity proven.
-21. **S3 done (step 20):** library filters serialized in the URL hash (`#/library?q&type&cat&tags&fav&arch&sort`, non-defaults only, validated parse); replaceState for refinements (no history spam from search debounce) + pushState for view entries (QE3 flow carries `cat`); bindHashNavigation restores view+filters after hydration and on popstate/hashchange; verified: refresh preservation, fresh deep-link navigation = identical results, back/forward restore, Persian UTF-8 q, fa/en; `s3-refresh-preserved-en-1280.png`, `s3-fa-hash-1280.png`; SNAPSHOT v20; lint clean; committed `49ccb44` & backup parity proven.
-22. **PHASE 2 CLOSE-OUT (step 21):** final full-app regression — dashboard/library(list 21/21 dated rows)/categories(8 cards)/settings @1280 fa, mobile @390 no overflow (`final-regression-390-fa.png`), console 0 errors, dev.log clean; lint clean; roadmap §9 execution summary + SNAPSHOT v21; committed & backup parity proven. **Phase 2 complete — awaiting owner's Phase-3 order (G1 recommended).**
+1. Environment prep (E1/E2) → product docs → persistence protocol → D1–D16 → GitHub origin + security closure (items 1–5 of v8, unchanged).
+2. **Full application build** (`be5caad`) + **Firebase Auth/Firestore integration** (`e214a98`, rules 39/39, E2E 15/15).
+3. **Feature X deep analysis** → `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` (phases 1–5, DoD, scoring).
+4. **Phase 1 Quick Wins COMPLETE (v9–v15):** QE1 list-row dates · QE2 filter-toolbar reorganization · QE3 clickable category cards · QE4 card tag chips (+N) · QE5 active-filters bar · QE6 causal save hints · QE7 password-reset blocker registered + final regression. All committed, backup parity proven per step.
+5. **Phase 2 Data Foundation COMPLETE (v16–v21):** S7 read consolidation (`6273298`) · S8 chunked writeBatch fan-outs (`4bf21a2`, emulator-verified) · S1 server-side pagination both modes, 500-cap deleted (`5f9d004`, demo@623 + cloud@601 verified) · S4 title/content editor (`6f392d2`) · S3 filters in URL hash (`49ccb44`) · close-out regression (`1dc294b`).
+6. **Step 22 — G1 DONE (Phase 3 opens):** persistentLocalCache + multi-tab manager (`firebase.ts`); `realtimeStore` with 3 uncapped onSnapshot listeners (`realtime.ts` NEW); ALL repository one-shot reads → live-store reads (S7 TTL snapshot + S1 cloud structured path deleted; fan-outs now read-free AND uncapped); realtime bridge in app-shell (coalesced invalidations, full teardown); demo 2 s polling; `deletedAt` data plumbing (DTO/NoteDoc/Prisma + rules whitelist, 39/39); **DoD verified live on emulator: second-device push, tab2→tab1 without refresh, offline cache browsing, offline write queue + sync after reconnect** (`roadmaps/evidence/g1-*.png`); rules-test re-run 39/39; lint clean; tsc clean (src/); dev.log clean. SNAPSHOT v22; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 2: ✅ COMPLETE (all 5 items, DoD-verified, regression clean).** Awaiting owner sign-off for Phase 3.
-- **Phase 3 (next, on owner order):** G1 realtime+offline (onSnapshot + IndexedDB; roadmap §8 calls it the #2 indispensable change) → S5 undo-delete → S2 capture unification.
-- **Phases 4–5:** S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
-- **Cloud-Go-Live backlog:** password-reset link (QE7) — blocked on real Firebase Email provider (`docs/ROADMAP.md`); composite-index completion in production follows the console's one-click suggestions (`firestore.indexes.json` has the 11 declared).
+- **Phase 3 (current, on owner order):**
+  - **S5 — Undo delete (NEXT):** deleteNote → soft delete (`deletedAt`); toast success with «بازگردانی» action (7 s window, sonner); restore mutation + API (`POST /api/notes/[id]/restore` demo; cloud update) ; Trash filter entry in the library filter bar (`filters.trash` + hash `trash=1`, mutual exclusion with archived); trash excluded from stats/categories/tags/default lists; 7-day auto-purge (demo: Prisma deleteMany on list; cloud: client-side batch in realtimeStore — already wired); undo-rate metric (client-side counter + Settings display per KPI). Rules already allow `deletedAt`.
+  - **S2 — Capture unification:** shared tag-chips input component for quick-capture AND detail sheet; paste-a-link in the title field → auto type=link + URL filled; i18n fa+en.
+  - **KPI:** cross-device new-item visibility < 1 s (cloud push — verified qualitatively); undo rate recorded & reported.
+- **Phases 4–5 (await owner):** S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
+- **Cloud-Go-Live backlog:** password-reset link (QE7, real Email provider); composite-index completion in production console (`firestore.indexes.json` has 11 declared; G1 made most read-time composites unnecessary — prune at go-live review); optional server-side trash purge (Cloud Scheduler) to complement the client-side 7-day sweep.
 - Pending owner items: **new PAT for `origin` push (single biggest durability gap — ALL work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
 
 ---
@@ -162,13 +155,13 @@ Owner mandate 2026-11-04, re-issued with acceptance criterion 2026-11-05: after 
 
 Checklist (all items mandatory, evidence-based):
 
-1. [ ] `docs/SNAPSHOT.md` fully updated to reflect the real project state (version bump + date).
-2. [ ] Affected reference docs updated: `docs/DECISIONS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`, `docs/ENVIRONMENT.md`, roadmap file, `worklog.md`.
-3. [ ] Git state recorded: branch, commit SHA(s), working-tree status, remote name(s) + verified remote SHA.
-4. [ ] `git status` reviewed before commit — no essential file left untracked/unstaged; nothing essential only in temp locations.
-5. [ ] Commit with a descriptive message.
-6. [ ] Push to every configured remote and **prove parity** with `git ls-remote <remote>` vs `git rev-parse HEAD`. **Current reality: `backup` always provable; `origin` push blocked — credential absent (owner action). Every commit queued for the single owner push.** Never claim origin parity falsely.
-7. [ ] Record evidence (SHAs, verification output) in `worklog.md` entry for the step.
-8. [ ] Any information that cannot live in the repo → §8 Honesty Ledger with cause + recovery method. Never claim full recoverability falsely. **Never store credentials in the repository.**
+1. [x] `docs/SNAPSHOT.md` fully updated to reflect the real project state (version bump + date).
+2. [x] Affected reference docs updated: `docs/DECISIONS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`, `docs/ENVIRONMENT.md`, roadmap file, `worklog.md`.
+3. [x] Git state recorded: branch, commit SHA(s), working-tree status, remote name(s) + verified remote SHA.
+4. [x] `git status` reviewed before commit — no essential file left untracked/unstaged; nothing essential only in temp locations.
+5. [x] Commit with a descriptive message.
+6. [x] Push to every configured remote and **prove parity** with `git ls-remote <remote>` vs `git rev-parse HEAD`. **Current reality: `backup` always provable; `origin` push blocked — credential absent (owner action). Every commit queued for the single owner push.** Never claim origin parity falsely.
+7. [x] Record evidence (SHAs, verification output) in `worklog.md` entry for the step.
+8. [x] Any information that cannot live in the repo → §8 Honesty Ledger with cause + recovery method. Never claim full recoverability falsely. **Never store credentials in the repository.**
 
 **Acceptance criterion:** if this sandbox is destroyed right now, cloning the remote + reading this repository must restore exact project state and allow continuing from the last approved point without any lost progress. **Honest status: true for `backup` (same-fs mirror) today; true for `origin`/GitHub the moment the owner supplies the push credential — all commits are queued on `main`.**

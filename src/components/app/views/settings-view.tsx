@@ -36,6 +36,8 @@ import { useMounted } from "@/hooks/use-mounted";
 import { useProfile, useResetSeed, useUpdateProfile } from "@/hooks/queries";
 import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
+import { formatNumber } from "@/lib/format";
+import { getUndoMetrics } from "@/lib/undo-metrics";
 import { apiRoutes } from "@/lib/api";
 import { dataSource } from "@/services/data-source";
 import { getFirebaseStatus } from "@/services/firebase";
@@ -408,10 +410,17 @@ function DataCard() {
 }
 
 function AboutCard() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const mounted = useMounted();
 
   const isTelegram = mounted && detectTelegramEnv() !== null;
+  // S5 — Phase-3 KPI: the undo rate is recorded and reported (per-device,
+  // localStorage-backed — see src/lib/undo-metrics.ts).
+  const undoMetrics = mounted ? getUndoMetrics() : null;
+  const undoPercent =
+    undoMetrics && undoMetrics.deletions > 0
+      ? Math.round((undoMetrics.undos / undoMetrics.deletions) * 100)
+      : null;
 
   return (
     <Card>
@@ -429,6 +438,18 @@ function AboutCard() {
           <span className="text-muted-foreground">{t("settings.version")}</span>
           <span className="font-medium" dir="ltr">
             v{APP_VERSION}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">{t("settings.undoRate")}</span>
+          <span className="font-medium">
+            {undoMetrics === null || undoMetrics.deletions === 0
+              ? t("settings.undoRate.none")
+              : t("settings.undoRate.value", {
+                  undone: formatNumber(undoMetrics.undos, locale),
+                  total: formatNumber(undoMetrics.deletions, locale),
+                  percent: formatNumber(undoPercent ?? 0, locale),
+                })}
           </span>
         </div>
         <p className="leading-6 text-muted-foreground">{t("settings.about.desc")}</p>

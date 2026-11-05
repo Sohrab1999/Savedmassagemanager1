@@ -48,12 +48,27 @@ function toApiFilters(filters: LibraryFiltersState): NoteFilters {
     tagIds: filters.tagIds.length ? filters.tagIds : undefined,
     favorite: filters.favorite || undefined,
     archived: filters.archived,
+    trash: filters.trash || undefined,
     sort: filters.sort,
   };
 }
 
 export function useStats() {
-  return useQuery({ queryKey: qk.stats(), queryFn: () => dataSource.stats() });
+  return useQuery({
+    queryKey: qk.stats(),
+    queryFn: () => dataSource.stats(),
+    refetchInterval: liveRefetch(),
+  });
+}
+
+// G1 — demo-mode liveness. The local demo API has no push channel, so
+// cross-tab/cross-device visibility is simulated with a 2 s poll (active tab
+// only). Cloud mode never polls: the realtime store (onSnapshot) invalidates
+// the cache on every snapshot.
+const DEMO_LIVE_POLL_MS = 2_000;
+
+function liveRefetch(): number | false {
+  return getCurrentUser() ? false : DEMO_LIVE_POLL_MS;
 }
 
 /** S1 — paginated notes list. One 30-item page per queryFn call; the UI appends
@@ -68,6 +83,7 @@ export function useNotes(filters: LibraryFiltersState) {
       dataSource.listNotes({ ...toApiFilters(filters), pageToken: pageParam || undefined }),
     initialPageParam: "",
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    refetchInterval: liveRefetch(),
   });
 }
 
@@ -83,11 +99,16 @@ export function useCategories() {
   return useQuery({
     queryKey: qk.categories(),
     queryFn: () => dataSource.listCategories(),
+    refetchInterval: liveRefetch(),
   });
 }
 
 export function useTags() {
-  return useQuery({ queryKey: qk.tags(), queryFn: () => dataSource.listTags() });
+  return useQuery({
+    queryKey: qk.tags(),
+    queryFn: () => dataSource.listTags(),
+    refetchInterval: liveRefetch(),
+  });
 }
 
 export function useProfile() {
@@ -147,6 +168,15 @@ export function useDeleteNote(): Mutation<string, { ok: true }> {
   const invalidate = useInvalidateNotes();
   return useMutation({
     mutationFn: dataSource.deleteNote,
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** S5 — undo: pulls a soft-deleted note out of the trash. */
+export function useRestoreNote(): Mutation<string, { ok: true }> {
+  const invalidate = useInvalidateNotes();
+  return useMutation({
+    mutationFn: dataSource.restoreNote,
     onSuccess: () => invalidate(),
   });
 }

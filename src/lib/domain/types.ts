@@ -49,6 +49,9 @@ export interface NoteDTO {
   tags: TagRef[];
   isFavorite: boolean;
   isArchived: boolean;
+  /** S5 — soft delete. null while the note is live; ISO timestamp of the
+   * moment it moved to the trash. Purged permanently after 7 days. */
+  deletedAt: string | null;
   savedAt: string;
   updatedAt: string;
 }
@@ -90,6 +93,8 @@ export interface NoteFilters {
   pageToken?: string;
   /** S1 pagination: page size (server clamps to its own maximum). */
   pageSize?: number;
+  /** S5 — trash view: when true, list ONLY soft-deleted notes. */
+  trash?: boolean;
 }
 
 export interface CreateNoteInput {

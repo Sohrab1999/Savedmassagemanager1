@@ -12,6 +12,9 @@ export interface LibraryFiltersState {
   tagIds: string[];
   favorite: boolean;
   archived: boolean;
+  /** S5 — trash view: shows ONLY soft-deleted notes. Mutually exclusive with
+   * `archived` (enforced in setFilters). */
+  trash: boolean;
   sort: NoteSort;
   layout: "grid" | "list";
 }
@@ -23,6 +26,7 @@ export const defaultLibraryFilters: LibraryFiltersState = {
   tagIds: [],
   favorite: false,
   archived: false,
+  trash: false,
   sort: "newest",
   layout: "grid",
 };
@@ -77,6 +81,13 @@ function parseHash(hash: string): HashRoute {
     }
     if (params.get("fav") === "1") filters.favorite = true;
     if (params.get("arch") === "1") filters.archived = true;
+    // S5 — trash deep-link; mutual exclusion with archived (last wins).
+    if (params.get("trash") === "1") {
+      filters.trash = true;
+      filters.archived = false;
+    } else if (filters.archived) {
+      filters.trash = false;
+    }
     const sort = params.get("sort");
     if (sort && (VALID_SORTS as string[]).includes(sort)) {
       filters.sort = sort as NoteSort;
@@ -92,7 +103,8 @@ function libraryHash(filters: LibraryFiltersState): string {
   if (filters.categoryId !== "all") params.set("cat", filters.categoryId);
   if (filters.tagIds.length) params.set("tags", filters.tagIds.join(","));
   if (filters.favorite) params.set("fav", "1");
-  if (filters.archived) params.set("arch", "1");
+  if (filters.trash) params.set("trash", "1");
+  else if (filters.archived) params.set("arch", "1");
   if (filters.sort !== "newest") params.set("sort", filters.sort);
   const qs = params.toString();
   return qs ? `#/library?${qs}` : "#/library";
@@ -142,7 +154,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setCaptureOpen: (open) => set({ captureOpen: open }),
 
   setFilters: (patch) => {
-    set((state) => ({ filters: { ...state.filters, ...patch } }));
+    set((state) => {
+      const next = { ...state.filters, ...patch };
+      // S5 — archived and trash are different views of the library; enabling
+      // one clears the other (also keeps the active-filter bar unambiguous).
+      if (patch.trash === true) next.archived = false;
+      if (patch.archived === true) next.trash = false;
+      return { filters: next };
+    });
     if (get().view === "library") {
       replaceHash(libraryHash(get().filters));
     }

@@ -9,23 +9,23 @@ export async function getStats(): Promise<StatsDTO> {
 
   const [total, favorites, archived, thisWeek, typeGroups, categories, recentNotes] =
     await Promise.all([
-      db.note.count({ where: { isArchived: false } }),
-      db.note.count({ where: { isArchived: false, isFavorite: true } }),
-      db.note.count({ where: { isArchived: true } }),
-      db.note.count({ where: { isArchived: false, savedAt: { gte: weekAgo } } }),
+      db.note.count({ where: { isArchived: false, deletedAt: null } }),
+      db.note.count({ where: { isArchived: false, isFavorite: true, deletedAt: null } }),
+      db.note.count({ where: { isArchived: true, deletedAt: null } }),
+      db.note.count({ where: { isArchived: false, savedAt: { gte: weekAgo }, deletedAt: null } }),
       db.note.groupBy({
         by: ["type"],
         _count: { _all: true },
-        where: { isArchived: false },
+        where: { isArchived: false, deletedAt: null },
       }),
       db.category.findMany({
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: {
-          _count: { select: { notes: { where: { isArchived: false } } } },
+          _count: { select: { notes: { where: { isArchived: false, deletedAt: null } } } },
         },
       }),
       db.note.findMany({
-        where: { isArchived: false },
+        where: { isArchived: false, deletedAt: null },
         orderBy: { savedAt: "desc" },
         take: 5,
         include: noteInclude,

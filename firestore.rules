@@ -75,7 +75,7 @@ service cloud.firestore {
           'type', 'title', 'content', 'description', 'url', 'mediaUrl',
           'fileName', 'fileSize', 'mediaDuration', 'sourceChat', 'sourceType',
           'categoryId', 'category', 'tags', 'isFavorite', 'isArchived',
-          'savedAt', 'updatedAt',
+          'deletedAt', 'savedAt', 'updatedAt',
         ])
         && data.keys().hasAll([
           'type', 'title', 'content', 'description', 'url', 'mediaUrl',
@@ -101,13 +101,17 @@ service cloud.firestore {
         && validTagList(data.tags)
         && data.isFavorite is bool
         && data.isArchived is bool
+        // S5 — soft delete: absent on pre-G1 documents, null while live, an
+        // epoch-ms number while in the trash (purged after 7 days).
+        && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt is number)
         && data.savedAt is number
         && data.updatedAt is number
         // savedAt is immutable after creation (repository never rewrites it)
         && (isCreate || data.savedAt == resource.data.savedAt)
         // No far-future timestamps (1 day of clock skew tolerated).
         && data.savedAt <= request.time.toMillis() + 86400000
-        && data.updatedAt <= request.time.toMillis() + 86400000;
+        && data.updatedAt <= request.time.toMillis() + 86400000
+        && (!('deletedAt' in data) || data.deletedAt == null || data.deletedAt <= request.time.toMillis() + 86400000);
     }
 
     function validCategory(data, isCreate) {

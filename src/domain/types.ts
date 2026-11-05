@@ -53,6 +53,10 @@ export interface NoteDoc {
   tags: TagRefDoc[];
   isFavorite: boolean;
   isArchived: boolean;
+  /** S5 — soft delete: epoch-ms of the moment the note moved to the trash;
+   * null while live. Optional so pre-G1 documents stay valid (rules keep the
+   * field optional). */
+  deletedAt?: number | null;
   savedAt: number;
   updatedAt: number;
 }

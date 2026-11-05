@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       favorite: params.get("favorite") === "true" || undefined,
       archived:
         archivedParam === null ? undefined : archivedParam === "true",
+      trash: params.get("trash") === "true" || undefined,
       sort: params.get("sort") ?? undefined,
       pageToken: params.get("pageToken") ?? undefined,
       pageSize: params.get("pageSize")
