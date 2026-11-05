@@ -1,0 +1,330 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Download,
+  Info,
+  Monitor,
+  Moon,
+  RotateCcw,
+  Sun,
+  User,
+} from "lucide-react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ErrorState } from "@/components/app/states";
+import { useMounted } from "@/hooks/use-mounted";
+import { useProfile, useResetSeed, useUpdateProfile } from "@/hooks/queries";
+import { useI18n } from "@/lib/i18n";
+import { apiRoutes } from "@/lib/api";
+import { detectTelegramEnv } from "@/lib/telegram/bridge";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const APP_VERSION = "0.1.0";
+
+function ProfileCard() {
+  const { t } = useI18n();
+  const profileQuery = useProfile();
+  const updateProfile = useUpdateProfile();
+
+  // Initialize from cached data when available, then keep in sync whenever
+  // the server profile changes (render-phase state adjustment).
+  const [displayName, setDisplayName] = useState(
+    () => profileQuery.data?.displayName ?? "",
+  );
+  const [username, setUsername] = useState(
+    () => profileQuery.data?.username ?? "",
+  );
+  const [lastProfile, setLastProfile] = useState(profileQuery.data);
+  if (profileQuery.data !== lastProfile) {
+    setLastProfile(profileQuery.data);
+    if (profileQuery.data) {
+      setDisplayName(profileQuery.data.displayName);
+      setUsername(profileQuery.data.username ?? "");
+    }
+  }
+
+  if (profileQuery.isError) {
+    return <ErrorState onRetry={() => profileQuery.refetch()} />;
+  }
+
+  const save = async () => {
+    try {
+      await updateProfile.mutateAsync({
+        displayName: displayName.trim() || undefined,
+        username: username.trim() || null,
+      });
+      toast.success(t("settings.profileSaved"));
+    } catch {
+      toast.error(t("toast.error"));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <User className="size-4 text-primary" aria-hidden="true" />
+          {t("settings.profile")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Avatar className="size-12 border">
+            <AvatarFallback className="bg-primary/10 text-primary font-bold">
+              {displayName.trim().charAt(0) || "؟"}
+            </AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-name">{t("settings.displayName")}</Label>
+              <Input
+                id="profile-name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="profile-username">{t("settings.username")}</Label>
+              <Input
+                id="profile-username"
+                dir="ltr"
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="@username"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={save}
+            disabled={updateProfile.isPending || !displayName.trim()}
+          >
+            {t("common.save")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AppearanceCard() {
+  const { t, locale, setLocale } = useI18n();
+  const { theme, setTheme } = useTheme();
+  const mounted = useMounted();
+
+  const themeOptions = [
+    { value: "light", labelKey: "settings.theme.light", icon: Sun },
+    { value: "dark", labelKey: "settings.theme.dark", icon: Moon },
+    { value: "system", labelKey: "settings.theme.system", icon: Monitor },
+  ] as const;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{t("settings.appearance")}</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2.5">
+          <Label>{t("settings.theme")}</Label>
+          <RadioGroup
+            value={mounted ? (theme ?? "system") : "system"}
+            onValueChange={setTheme}
+            className="grid grid-cols-3 gap-2"
+          >
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              const active = mounted && (theme ?? "system") === option.value;
+              return (
+                <Label
+                  key={option.value}
+                  className={cn(
+                    "flex min-h-11 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border p-2 text-[11px] font-normal transition-colors",
+                    active && "border-primary bg-primary/10 text-primary",
+                  )}
+                >
+                  <RadioGroupItem value={option.value} className="sr-only" />
+                  <Icon className="size-4" aria-hidden="true" />
+                  {t(option.labelKey)}
+                </Label>
+              );
+            })}
+          </RadioGroup>
+        </div>
+
+        <div className="space-y-2.5">
+          <Label>{t("settings.language")}</Label>
+          <RadioGroup
+            value={locale}
+            onValueChange={(value) => setLocale(value as "fa" | "en")}
+            className="grid grid-cols-2 gap-2"
+          >
+            <Label
+              className={cn(
+                "flex min-h-11 cursor-pointer items-center justify-center gap-1 rounded-lg border text-sm font-normal transition-colors",
+                locale === "fa" && "border-primary bg-primary/10 text-primary",
+              )}
+            >
+              <RadioGroupItem value="fa" className="sr-only" />
+              فارسی
+            </Label>
+            <Label
+              className={cn(
+                "flex min-h-11 cursor-pointer items-center justify-center gap-1 rounded-lg border text-sm font-normal transition-colors",
+                locale === "en" && "border-primary bg-primary/10 text-primary",
+              )}
+            >
+              <RadioGroupItem value="en" className="sr-only" />
+              English
+            </Label>
+          </RadioGroup>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DataCard() {
+  const { t } = useI18n();
+  const resetSeed = useResetSeed();
+
+  const exportData = async () => {
+    try {
+      await apiRoutes.exportData();
+    } catch {
+      toast.error(t("toast.error"));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{t("settings.data")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{t("settings.export")}</p>
+            <p className="text-xs text-muted-foreground">{t("settings.export.desc")}</p>
+          </div>
+          <Button variant="outline" size="sm" className="shrink-0 gap-1.5" onClick={exportData}>
+            <Download className="size-4" aria-hidden="true" />
+            {t("common.save")}
+          </Button>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{t("settings.reset")}</p>
+            <p className="text-xs text-muted-foreground">{t("settings.reset.desc")}</p>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+              >
+                <RotateCcw className="size-4" aria-hidden="true" />
+                {t("settings.reset")}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("settings.reset.confirmTitle")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("settings.reset.confirm.desc")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-white hover:bg-destructive/90"
+                  onClick={async () => {
+                    try {
+                      await resetSeed.mutateAsync();
+                      toast.success(t("settings.reset.done"));
+                    } catch {
+                      toast.error(t("toast.error"));
+                    }
+                  }}
+                >
+                  {t("common.confirm")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AboutCard() {
+  const { t } = useI18n();
+  const mounted = useMounted();
+
+  const isTelegram = mounted && detectTelegramEnv() !== null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">{t("settings.about")}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">{t("settings.environment")}</span>
+          <Badge variant={isTelegram ? "default" : "secondary"} className="rounded-full">
+            {isTelegram ? t("settings.env.telegram") : t("settings.env.browser")}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">{t("settings.version")}</span>
+          <span className="font-medium" dir="ltr">
+            v{APP_VERSION}
+          </span>
+        </div>
+        <p className="leading-6 text-muted-foreground">{t("settings.about.desc")}</p>
+        <p className="flex gap-2 rounded-lg bg-muted p-3 text-xs leading-5 text-muted-foreground">
+          <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {t("settings.integrationNote")}
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SettingsView() {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-4">
+      <h1 className="text-lg font-bold sm:text-xl">{t("settings.title")}</h1>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ProfileCard />
+        <AppearanceCard />
+        <DataCard />
+        <AboutCard />
+      </div>
+    </div>
+  );
+}

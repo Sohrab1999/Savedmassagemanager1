@@ -1,8 +1,7 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Savedbox — Telegram Saved Messages Organizer
+// Domain model: User, Category, Tag, Note (saved item) + NoteTag join table.
+// `telegramId` is intentionally nullable: reserved for a future Telegram
+// authentication adapter without any schema rewrite.
 
 generator client {
   provider = "prisma-client-js"
@@ -14,19 +13,77 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  // Future Telegram auth adapter will fill this. Null in browser demo mode.
+  telegramId  String?  @unique
+  username    String?
+  displayName String
+  avatarUrl   String?
+  locale      String   @default("fa")
+  theme       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  notes       Note[]
 }
 
-model Post {
+model Category {
   id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
+  slug      String   @unique
+  name      String
+  nameFa    String?
+  icon      String   @default("folder")
+  color     String   @default("#0d9488")
+  order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  notes     Note[]
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  notes     NoteTag[]
+}
+
+model Note {
+  id            String    @id @default(cuid())
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // text | link | image | video | file
+  type          String    @default("text")
+  title         String
+  // original message body / caption
+  content       String?
+  // editable user annotation (separate from original content)
+  description   String?
+  url           String?
+  mediaUrl      String?
+  fileName      String?
+  fileSize      Int?
+  mediaDuration Int?
+  sourceChat    String?
+  // manual | telegram (telegram is metadata only until the Bot API adapter lands)
+  sourceType    String    @default("manual")
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  isFavorite    Boolean   @default(false)
+  isArchived    Boolean   @default(false)
+  savedAt       DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tags          NoteTag[]
+
+  @@index([type])
+  @@index([isArchived, isFavorite])
+  @@index([savedAt])
+}
+
+model NoteTag {
+  noteId String
+  tagId  String
+  note   Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
 }

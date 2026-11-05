@@ -1,0 +1,417 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import {
+  Archive,
+  Check,
+  ChevronDown,
+  Filter,
+  LayoutGrid,
+  List,
+  Plus,
+  Search,
+  Star,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EmptyState, ErrorState, GridSkeleton, ListSkeleton } from "@/components/app/states";
+import { NoteCard } from "@/components/app/note-card";
+import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
+import { useNotes, useCategories, useTags } from "@/hooks/queries";
+import { useI18n } from "@/lib/i18n";
+import { formatNumber } from "@/lib/format";
+import { NOTE_TYPES } from "@/lib/domain/types";
+import { useAppStore } from "@/stores/app-store";
+import { ApiError } from "@/lib/api/client";
+import { cn } from "@/lib/utils";
+
+export function LibraryView() {
+  const { t, locale } = useI18n();
+  const filters = useAppStore((state) => state.filters);
+  const setFilters = useAppStore((state) => state.setFilters);
+  const resetFilters = useAppStore((state) => state.resetFilters);
+  const openNote = useAppStore((state) => state.openNote);
+  const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
+
+  const notesQuery = useNotes(filters);
+  const categoriesQuery = useCategories();
+  const tagsQuery = useTags();
+
+  const [searchInput, setSearchInput] = useState(filters.q);
+
+  // Debounce search into the store so the query doesn't run per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchInput !== filters.q) setFilters({ q: searchInput });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput, filters.q, setFilters]);
+
+  const hasActiveFilters =
+    filters.q !== "" ||
+    filters.type !== "all" ||
+    filters.categoryId !== "all" ||
+    filters.tagIds.length > 0 ||
+    filters.favorite ||
+    filters.archived;
+
+  const toggleTag = useCallback(
+    (tagId: string) => {
+      const next = filters.tagIds.includes(tagId)
+        ? filters.tagIds.filter((id) => id !== tagId)
+        : [...filters.tagIds, tagId];
+      setFilters({ tagIds: next });
+    },
+    [filters.tagIds, setFilters],
+  );
+
+  const items = notesQuery.data?.items ?? [];
+  const total = notesQuery.data?.total ?? 0;
+  const categories = categoriesQuery.data?.items ?? [];
+  const tags = tagsQuery.data?.items ?? [];
+
+  const isDefaultFilters =
+    !hasActiveFilters && filters.sort === "newest";
+
+  const renderBody = () => {
+    if (notesQuery.isLoading && !notesQuery.data) {
+      return filters.layout === "grid" ? <GridSkeleton /> : <ListSkeleton rows={7} />;
+    }
+    if (notesQuery.isError) {
+      return (
+        <ErrorState
+          onRetry={() => notesQuery.refetch()}
+          message={undefined}
+        />
+      );
+    }
+    if (items.length === 0) {
+      return isDefaultFilters ? (
+        <EmptyState
+          title={t("library.empty.title")}
+          description={t("library.empty.desc")}
+          action={
+            <Button onClick={() => setCaptureOpen(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              {t("dashboard.quickCapture")}
+            </Button>
+          }
+        />
+      ) : (
+        <EmptyState
+          title={t("library.noResults.title")}
+          description={t("library.noResults.desc")}
+          action={
+            <Button variant="outline" size="sm" onClick={resetFilters}>
+              {t("library.clearFilters")}
+            </Button>
+          }
+        />
+      );
+    }
+    return filters.layout === "grid" ? (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {items.map((note) => (
+          <NoteCard key={note.id} note={note} layout="grid" onOpen={openNote} />
+        ))}
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {items.map((note) => (
+          <NoteCard key={note.id} note={note} layout="list" onOpen={openNote} />
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-lg font-bold sm:text-xl">{t("library.title")}</h1>
+        <span className="text-xs text-muted-foreground">
+          {t("library.resultsCount", { n: formatNumber(total, locale) })}
+        </span>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-muted-foreground start-3"
+          aria-hidden="true"
+        />
+        <Input
+          type="search"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          placeholder={t("library.searchPlaceholder")}
+          aria-label={t("a11y.search")}
+          className="h-10 ps-9"
+        />
+        {searchInput ? (
+          <button
+            type="button"
+            aria-label={t("common.clearAll")}
+            onClick={() => setSearchInput("")}
+            className="absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground end-2"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        ) : null}
+      </div>
+
+      {/* Filter toolbar */}
+      <div className="scroll-area -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {/* Type chips */}
+        <FilterChip
+          active={filters.type === "all"}
+          onClick={() => setFilters({ type: "all" })}
+          label={t("common.all")}
+        />
+        {NOTE_TYPES.map((type) => {
+          const meta = TYPE_META[type];
+          const Icon = meta.icon;
+          const active = filters.type === type;
+          return (
+            <FilterChip
+              key={type}
+              active={active}
+              onClick={() => setFilters({ type })}
+              icon={<Icon className="size-3.5" style={{ color: meta.color }} aria-hidden="true" />}
+              label={t(meta.labelKey)}
+            />
+          );
+        })}
+
+        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+        {/* Favorite / archived */}
+        <FilterChip
+          active={filters.favorite}
+          onClick={() => setFilters({ favorite: !filters.favorite })}
+          icon={<Star className="size-3.5" aria-hidden="true" />}
+          label={t("library.filters.favorite")}
+        />
+        <FilterChip
+          active={filters.archived}
+          onClick={() => setFilters({ archived: !filters.archived })}
+          icon={<Archive className="size-3.5" aria-hidden="true" />}
+          label={t("library.filters.archived")}
+        />
+
+        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+        {/* Category select */}
+        <Select
+          value={filters.categoryId}
+          onValueChange={(value) => setFilters({ categoryId: value })}
+        >
+          <SelectTrigger
+            size="sm"
+            className="h-8 min-w-28 shrink-0 text-xs"
+            aria-label={t("library.filters.category")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("common.all")}</SelectItem>
+            <SelectItem value="none">{t("common.none")}</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {localizedCategoryName(category, locale)} (
+                {formatNumber(category.noteCount, locale)})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Tags popover */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-8 shrink-0 gap-1.5 rounded-full text-xs",
+                filters.tagIds.length > 0 && "border-primary/60 bg-primary/10 text-primary",
+              )}
+            >
+              <Filter className="size-3.5" aria-hidden="true" />
+              {filters.tagIds.length > 0
+                ? t("library.filters.tagsSelected", {
+                    n: formatNumber(filters.tagIds.length, locale),
+                  })
+                : t("library.filters.tags")}
+              <ChevronDown className="size-3.5" aria-hidden="true" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 p-2">
+            <div className="scroll-area max-h-64 overflow-y-auto">
+              {tags.length === 0 ? (
+                <p className="p-2 text-xs text-muted-foreground">{t("tags.empty")}</p>
+              ) : (
+                tags.map((tag) => {
+                  const checked = filters.tagIds.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag.id)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs hover:bg-accent"
+                    >
+                      <span
+                        className={cn(
+                          "flex size-4 items-center justify-center rounded border",
+                          checked
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-input",
+                        )}
+                      >
+                        {checked ? <Check className="size-3" aria-hidden="true" /> : null}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatNumber(tag.noteCount, locale)}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+        {/* Sort */}
+        <Select
+          value={filters.sort}
+          onValueChange={(value) => setFilters({ sort: value as typeof filters.sort })}
+        >
+          <SelectTrigger
+            size="sm"
+            className="h-8 w-32 shrink-0 text-xs"
+            aria-label={t("library.sort")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="newest">{t("library.sort.newest")}</SelectItem>
+            <SelectItem value="oldest">{t("library.sort.oldest")}</SelectItem>
+            <SelectItem value="title">{t("library.sort.title")}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Layout toggle */}
+        <div className="flex shrink-0 items-center rounded-full border p-0.5">
+          <button
+            type="button"
+            aria-label={t("library.layout.grid")}
+            aria-pressed={filters.layout === "grid"}
+            onClick={() => setFilters({ layout: "grid" })}
+            className={cn(
+              "flex size-7 items-center justify-center rounded-full transition-colors",
+              filters.layout === "grid"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            <LayoutGrid className="size-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label={t("library.layout.list")}
+            aria-pressed={filters.layout === "list"}
+            onClick={() => setFilters({ layout: "list" })}
+            className={cn(
+              "flex size-7 items-center justify-center rounded-full transition-colors",
+              filters.layout === "list"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            <List className="size-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      {/* Selected tag chips */}
+      {filters.tagIds.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {filters.tagIds.map((tagId) => {
+            const tag = tags.find((item) => item.id === tagId);
+            return (
+              <Badge
+                key={tagId}
+                variant="secondary"
+                className="gap-1 rounded-full ps-2.5 pe-1"
+              >
+                {tag?.name ?? tagId}
+                <button
+                  type="button"
+                  aria-label={t("common.delete")}
+                  onClick={() => toggleTag(tagId)}
+                  className="flex size-4 items-center justify-center rounded-full hover:bg-background/60"
+                >
+                  <X className="size-3" aria-hidden="true" />
+                </button>
+              </Badge>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={() => setFilters({ tagIds: [] })}
+          >
+            {t("common.clearAll")}
+          </Button>
+        </div>
+      ) : null}
+
+      {renderBody()}
+    </div>
+  );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  label,
+  icon,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        active
+          ? "border-primary/60 bg-primary text-primary-foreground"
+          : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
