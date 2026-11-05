@@ -4,6 +4,25 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ---
 
+## 2026-11-05
+
+### Step 8 — Phase 1 Quick Wins launched: persistence baseline restored, SNAPSHOT v8 full rewrite, evidence captured
+- **Trigger:** Owner mandate (Persian, 2026-11-05): execute `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` **Phase 1 — Quick Wins (QE1–QE7, no architecture changes)**; after every step fully refresh `docs/SNAPSHOT.md` (not summary-append), update all reference docs, commit, push to remote, prove SHA parity via `git ls-remote`; acceptance criterion = a destroyed sandbox must be recoverable via fresh clone + repository docs alone.
+- **Protocol pre-check (live verification, before any change):**
+  - Git: branch `main`, HEAD `8f3b15f`, working tree **clean**; roadmap §9 precondition satisfied (pending Firebase-phase changes were already committed as `e214a98`).
+  - **Persistence debt found: `main` ahead of `origin/main` by 7 commits** (`9e623df` docs-reverify, `375b889` checkpoint, `be5caad` full Savedbox app, `90c6295` checkpoint, `e214a98` Firebase integration, `776923b` checkpoint, `8f3b15f` checkpoint). **`backup` remote DESTROYED** (`/home/z/my-project-backup.git` missing — aftermath of the earlier platform rollback): `git ls-remote backup` → `fatal: does not appear to be a git repository`.
+  - **`origin` push capability test:** anonymous `ls-remote origin` exit 0 (`main = e5898b2…`), but authenticated push dry-run → `fatal: could not read Username for 'https://github.com'` (exit 128). Credential audit: no `~/.git-credentials`, no credential helper store entry, no env tokens, no netrc, `upload/` empty → **origin push remains BLOCKED by the standing security closure; only the owner can restore it (new fine-grained PAT)**. Recorded honestly in SNAPSHOT §8 (requirement #8).
+- **Actions:**
+  1. **`backup` mirror recreated**: `git init --bare /home/z/my-project-backup.git` → `git push backup main` → **parity proven: `git ls-remote backup refs/heads/main` = `8f3b15f0eb26cd8f9f74d76605462f4569bb9a2f` = local HEAD**. The entire 7-commit debt is now mirrored.
+  2. **QE2 baseline evidence (DoD requirement)**: live screenshots captured via agent-browser on the running app (demo mode) — `roadmaps/evidence/qe2-before-1280.png` (filter bar: sort select clipped at edge, layout toggle off-frame) and `roadmaps/evidence/qe2-before-390.png` (sort + layout entirely out of view) — **re-confirming roadmap findings #1 against the live build**.
+  3. **Lint baseline:** `bun run lint` → clean.
+  4. **`docs/SNAPSHOT.md` FULLY REWRITTEN to v8** (previous v7 predated the whole application build and was outdated): real product identity (Savedbox full app), implemented capabilities (auth gate, 4-view IA, capture/library/detail, dual-mode data source, Firebase emulator-verified), binding contracts (incl. Phase-1 no-architecture-change constraint, i18n dual-dictionary rule), data structures, dependencies, quality status, **honest §8 ledger** (origin frozen at `e5898b2`; gap = absent credential, owner action; backup mirror recreated), live-check §9, recovery §10, completed-work §11, remaining work §12, updated §Protocol.
+- **Honest deltas:** origin (GitHub) still frozen at `e5898b2` — every local commit (all app work + all Phase-1 steps) is queued on `main` and will be pushed by ONE `git push origin main` the moment the owner supplies a credential; until then off-sandbox durability = GitHub up to `e5898b2` + same-fs `backup` mirror for everything newer. This is the maximum technically possible compliance; no false parity claimed.
+- **State after step:** Phase 1 not yet code-touched; baseline evidence + docs persisted. Next: QE1.
+- **Commit:** this docs commit (final HEAD — see live `git rev-parse HEAD`; parity evidence below in this entry's verification line and SNAPSHOT §9).
+
+---
+
 ## 2026-11-04
 
 ### Step 7 — GitHub backup independently re-verified (parity claim CONFIRMED); "empty" display diagnosed as checker artifact; security closure applied
