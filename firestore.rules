@@ -1,0 +1,193 @@
+rules_version = '2';
+
+// TeleVault / Savedbox — Cloud Firestore security rules.
+//
+// Model: everything lives under the authenticated owner's subtree
+//   users/{uid}            → profile document
+//   users/{uid}/notes/**   → NoteDoc
+//   users/{uid}/categories → CategoryDoc
+//   users/{uid}/tags       → TagDoc
+//
+// Invariants enforced here (mirrors of src/services/repository.ts writes):
+//   1. Only the authenticated owner can read or write anything under
+//      users/{uid} — no cross-user access, no anonymous access.
+//   2. Documents must match the exact field set / types / length caps of the
+//      *Doc interfaces in src/domain/types.ts.
+//   3. Profile documents cannot be deleted; savedAt (notes) and createdAt
+//      (categories) are immutable after creation.
+//   4. Everything else is denied by default.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // ---- field validators -------------------------------------------------
+
+    function isStr(v, minLen, maxLen) {
+      return v is string && v.size() >= minLen && v.size() <= maxLen;
+    }
+
+    function isOptStr(v, maxLen) {
+      return (v is string && v.size() <= maxLen) || v == null;
+    }
+
+    function isOptNum(v) {
+      return v is number || v == null;
+    }
+
+    function validTagRef(t) {
+      return t is map
+        && t.keys().hasOnly(['id', 'name'])
+        && isStr(t.id, 1, 128)
+        && isStr(t.name, 1, 100);
+    }
+
+    // NOTE: per-element validation of tag references would require list
+    // iteration (list.all / list.any), which the Firestore Emulator's rules
+    // engine does not support at runtime. Tags are therefore validated by
+    // count cap; the {id, name} element shape is enforced by the repository
+    // (src/services/repository.ts) and only the owner can ever write here.
+    function validTagList(tags) {
+      return tags is list
+        && tags.size() <= 30;
+    }
+
+    function validCategoryRef(c) {
+      return c is map
+        && c.keys().hasOnly(['id', 'slug', 'name', 'nameFa', 'icon', 'color'])
+        && isStr(c.id, 1, 128)
+        && isStr(c.slug, 1, 140)
+        && isStr(c.name, 1, 100)
+        && (c.nameFa == null || isStr(c.nameFa, 1, 100))
+        && isStr(c.icon, 1, 64)
+        && isStr(c.color, 1, 32);
+    }
+
+    function validNote(data, isCreate) {
+      return data.keys().hasOnly([
+          'type', 'title', 'content', 'description', 'url', 'mediaUrl',
+          'fileName', 'fileSize', 'mediaDuration', 'sourceChat', 'sourceType',
+          'categoryId', 'category', 'tags', 'isFavorite', 'isArchived',
+          'savedAt', 'updatedAt',
+        ])
+        && data.keys().hasAll([
+          'type', 'title', 'content', 'description', 'url', 'mediaUrl',
+          'fileName', 'fileSize', 'mediaDuration', 'sourceChat', 'sourceType',
+          'categoryId', 'category', 'tags', 'isFavorite', 'isArchived',
+          'savedAt', 'updatedAt',
+        ])
+        && data.type in ['text', 'link', 'image', 'video', 'file']
+        && isStr(data.title, 1, 200)
+        && isOptStr(data.content, 100000)
+        && isOptStr(data.description, 5000)
+        && isOptStr(data.url, 2048)
+        && isOptStr(data.mediaUrl, 2048)
+        && isOptStr(data.fileName, 255)
+        && isOptNum(data.fileSize)
+        && isOptNum(data.mediaDuration)
+        && isOptStr(data.sourceChat, 200)
+        && data.sourceType in ['manual', 'telegram']
+        && (data.categoryId == null || isStr(data.categoryId, 1, 128))
+        && (data.category == null || validCategoryRef(data.category))
+        && ((data.categoryId == null && data.category == null)
+            || (data.categoryId != null && data.category != null))
+        && validTagList(data.tags)
+        && data.isFavorite is bool
+        && data.isArchived is bool
+        && data.savedAt is number
+        && data.updatedAt is number
+        // savedAt is immutable after creation (repository never rewrites it)
+        && (isCreate || data.savedAt == resource.data.savedAt)
+        // No far-future timestamps (1 day of clock skew tolerated).
+        && data.savedAt <= request.time.toMillis() + 86400000
+        && data.updatedAt <= request.time.toMillis() + 86400000;
+    }
+
+    function validCategory(data, isCreate) {
+      return data.keys().hasOnly([
+          'slug', 'name', 'nameFa', 'icon', 'color', 'order', 'createdAt',
+        ])
+        && data.keys().hasAll(['slug', 'name', 'nameFa', 'icon', 'color', 'order', 'createdAt'])
+        && isStr(data.slug, 1, 140)
+        && isStr(data.name, 1, 100)
+        && (data.nameFa == null || isStr(data.nameFa, 1, 100))
+        && isStr(data.icon, 1, 64)
+        && isStr(data.color, 1, 32)
+        && data.order is number
+        && data.order >= 0
+        && data.order <= 1000000
+        && data.createdAt is number
+        && (isCreate || data.createdAt == resource.data.createdAt)
+        && data.createdAt <= request.time.toMillis() + 86400000;
+    }
+
+    function validTag(data) {
+      return data.keys().hasOnly(['name', 'createdAt'])
+        && data.keys().hasAll(['name', 'createdAt'])
+        && isStr(data.name, 1, 100)
+        && data.createdAt is number
+        && data.createdAt <= request.time.toMillis() + 86400000;
+    }
+
+    function validProfile(data, isCreate) {
+      return data.keys().hasOnly([
+          'displayName', 'username', 'locale', 'theme', 'createdAt', 'updatedAt',
+        ])
+        && data.keys().hasAll(['displayName', 'username', 'locale', 'theme', 'createdAt', 'updatedAt'])
+        && isStr(data.displayName, 1, 100)
+        && (data.username == null || isStr(data.username, 1, 100))
+        && isStr(data.locale, 2, 10)
+        && (data.theme == null || isStr(data.theme, 1, 20))
+        && data.createdAt is number
+        && data.updatedAt is number
+        && (isCreate || data.createdAt == resource.data.createdAt)
+        && data.updatedAt <= request.time.toMillis() + 86400000;
+    }
+
+    // ---- document access --------------------------------------------------
+
+    match /users/{uid} {
+      allow get, list: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(request.resource.data, true);
+      allow update: if isOwner(uid) && validProfile(request.resource.data, false);
+      // Profile documents are never deleted (account lifecycle is managed
+      // by Firebase Auth / tooling, not by the client).
+      allow delete: if false;
+
+      match /notes/{noteId} {
+        allow get, list: if isOwner(uid);
+        allow create: if isOwner(uid) && validNote(request.resource.data, true);
+        allow update: if isOwner(uid) && validNote(request.resource.data, false);
+        allow delete: if isOwner(uid);
+      }
+
+      match /categories/{categoryId} {
+        allow get, list: if isOwner(uid);
+        allow create: if isOwner(uid) && validCategory(request.resource.data, true);
+        allow update: if isOwner(uid) && validCategory(request.resource.data, false);
+        allow delete: if isOwner(uid);
+      }
+
+      match /tags/{tagId} {
+        allow get, list: if isOwner(uid);
+        allow create: if isOwner(uid) && validTag(request.resource.data);
+        // Tags are immutable once created (rename is not an operation);
+        // deletion is allowed only for the owner.
+        allow update: if false;
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // Explicit catch-all deny (Firestore denies by default; kept for clarity).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,6 +1,11 @@
 "use client";
 
 // TanStack Query hooks: single source of server-state access for the UI.
+//
+// Every read/write dispatches through `dataSource`, which targets the real
+// Cloud Firestore repository when a verified Firebase session exists and the
+// local demo API (sample data) otherwise. Cache keys are scoped by the
+// verified UID so different users never share cached entries.
 
 import {
   useMutation,
@@ -8,7 +13,8 @@ import {
   useQueryClient,
   type UseMutationResult,
 } from "@tanstack/react-query";
-import { apiRoutes } from "@/lib/api";
+import { dataSource, currentDataMode } from "@/services/data-source";
+import { getCurrentUser } from "@/services/firebase";
 import { ApiError } from "@/lib/api/client";
 import type { LibraryFiltersState } from "@/stores/app-store";
 import type {
@@ -16,17 +22,21 @@ import type {
   NoteDTO,
   NoteFilters,
   ProfileDTO,
-  StatsDTO,
   TagDTO,
 } from "@/lib/domain/types";
 
+/** Cache scope: the verified UID (cloud) or the demo bucket. */
+function scopeKey(): string {
+  return getCurrentUser()?.uid ?? "demo";
+}
+
 export const qk = {
-  stats: ["stats"] as const,
-  notes: (filters: LibraryFiltersState) => ["notes", filters] as const,
-  note: (id: string) => ["note", id] as const,
-  categories: ["categories"] as const,
-  tags: ["tags"] as const,
-  profile: ["profile"] as const,
+  stats: () => ["stats", scopeKey()] as const,
+  notes: (filters: LibraryFiltersState) => ["notes", scopeKey(), filters] as const,
+  note: (id: string) => ["note", scopeKey(), id] as const,
+  categories: () => ["categories", scopeKey()] as const,
+  tags: () => ["tags", scopeKey()] as const,
+  profile: () => ["profile", scopeKey()] as const,
 };
 
 function toApiFilters(filters: LibraryFiltersState): NoteFilters {
@@ -42,13 +52,13 @@ function toApiFilters(filters: LibraryFiltersState): NoteFilters {
 }
 
 export function useStats() {
-  return useQuery({ queryKey: qk.stats, queryFn: apiRoutes.stats });
+  return useQuery({ queryKey: qk.stats(), queryFn: () => dataSource.stats() });
 }
 
 export function useNotes(filters: LibraryFiltersState) {
   return useQuery({
     queryKey: qk.notes(filters),
-    queryFn: () => apiRoutes.listNotes(toApiFilters(filters)),
+    queryFn: () => dataSource.listNotes(toApiFilters(filters)),
     placeholderData: (previous) => previous,
   });
 }
@@ -56,21 +66,31 @@ export function useNotes(filters: LibraryFiltersState) {
 export function useNote(id: string | null) {
   return useQuery({
     queryKey: qk.note(id ?? ""),
-    queryFn: () => apiRoutes.getNote(id as string),
+    queryFn: () => dataSource.getNote(id as string),
     enabled: Boolean(id),
   });
 }
 
 export function useCategories() {
-  return useQuery({ queryKey: qk.categories, queryFn: apiRoutes.listCategories });
+  return useQuery({
+    queryKey: qk.categories(),
+    queryFn: () => dataSource.listCategories(),
+  });
 }
 
 export function useTags() {
-  return useQuery({ queryKey: qk.tags, queryFn: apiRoutes.listTags });
+  return useQuery({ queryKey: qk.tags(), queryFn: () => dataSource.listTags() });
 }
 
 export function useProfile() {
-  return useQuery({ queryKey: qk.profile, queryFn: apiRoutes.getProfile });
+  return useQuery({
+    queryKey: qk.profile(),
+    queryFn: () => dataSource.getProfile(),
+  });
+}
+
+export function useDataMode() {
+  return currentDataMode();
 }
 
 export function useInvalidateAll() {
@@ -83,30 +103,30 @@ export function useInvalidateNotes() {
   return () => {
     queryClient.invalidateQueries({ queryKey: ["notes"] });
     queryClient.invalidateQueries({ queryKey: ["note"] });
-    queryClient.invalidateQueries({ queryKey: qk.stats });
+    queryClient.invalidateQueries({ queryKey: ["stats"] });
   };
 }
 
 type Mutation<TInput, TOutput> = UseMutationResult<TOutput, ApiError, TInput>;
 
 export function useCreateNote(): Mutation<
-  Parameters<typeof apiRoutes.createNote>[0],
+  Parameters<typeof dataSource.createNote>[0],
   NoteDTO
 > {
   const invalidate = useInvalidateNotes();
   return useMutation({
-    mutationFn: apiRoutes.createNote,
+    mutationFn: dataSource.createNote,
     onSuccess: () => invalidate(),
   });
 }
 
 export function useUpdateNote(): Mutation<
-  { id: string; patch: Parameters<typeof apiRoutes.updateNote>[1] },
+  { id: string; patch: Parameters<typeof dataSource.updateNote>[1] },
   NoteDTO
 > {
   const invalidate = useInvalidateNotes();
   return useMutation({
-    mutationFn: ({ id, patch }) => apiRoutes.updateNote(id, patch),
+    mutationFn: ({ id, patch }) => dataSource.updateNote(id, patch),
     onSuccess: () => invalidate(),
   });
 }
@@ -114,37 +134,37 @@ export function useUpdateNote(): Mutation<
 export function useDeleteNote(): Mutation<string, { ok: true }> {
   const invalidate = useInvalidateNotes();
   return useMutation({
-    mutationFn: apiRoutes.deleteNote,
+    mutationFn: dataSource.deleteNote,
     onSuccess: () => invalidate(),
   });
 }
 
 export function useCreateCategory(): Mutation<
-  Parameters<typeof apiRoutes.createCategory>[0],
+  Parameters<typeof dataSource.createCategory>[0],
   CategoryDTO
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: apiRoutes.createCategory,
+    mutationFn: dataSource.createCategory,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.categories });
-      queryClient.invalidateQueries({ queryKey: qk.stats });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
   });
 }
 
 export function useUpdateCategory(): Mutation<
-  { id: string; patch: Parameters<typeof apiRoutes.updateCategory>[1] },
+  { id: string; patch: Parameters<typeof dataSource.updateCategory>[1] },
   CategoryDTO
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }) => apiRoutes.updateCategory(id, patch),
+    mutationFn: ({ id, patch }) => dataSource.updateCategory(id, patch),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.categories });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       queryClient.invalidateQueries({ queryKey: ["note"] });
-      queryClient.invalidateQueries({ queryKey: qk.stats });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
   });
 }
@@ -152,33 +172,33 @@ export function useUpdateCategory(): Mutation<
 export function useDeleteCategory(): Mutation<string, { ok: true }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: apiRoutes.deleteCategory,
+    mutationFn: dataSource.deleteCategory,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.categories });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       queryClient.invalidateQueries({ queryKey: ["note"] });
-      queryClient.invalidateQueries({ queryKey: qk.stats });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
   });
 }
 
 export function useCreateTag(): Mutation<
-  Parameters<typeof apiRoutes.createTag>[0],
+  Parameters<typeof dataSource.createTag>[0],
   TagDTO
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: apiRoutes.createTag,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.tags }),
+    mutationFn: dataSource.createTag,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tags"] }),
   });
 }
 
 export function useDeleteTag(): Mutation<string, { ok: true }> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: apiRoutes.deleteTag,
+    mutationFn: dataSource.deleteTag,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: qk.tags });
+      queryClient.invalidateQueries({ queryKey: ["tags"] });
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       queryClient.invalidateQueries({ queryKey: ["note"] });
     },
@@ -186,13 +206,13 @@ export function useDeleteTag(): Mutation<string, { ok: true }> {
 }
 
 export function useUpdateProfile(): Mutation<
-  Parameters<typeof apiRoutes.updateProfile>[0],
+  Parameters<typeof dataSource.updateProfile>[0],
   ProfileDTO
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: apiRoutes.updateProfile,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.profile }),
+    mutationFn: dataSource.updateProfile,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profile"] }),
   });
 }
 
@@ -202,7 +222,16 @@ export function useResetSeed(): Mutation<
 > {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => apiRoutes.resetSeed(),
+    mutationFn: () => apiResetSeed(),
     onSuccess: () => queryClient.invalidateQueries(),
   });
+}
+
+/** Sample-data reset is demo-only; refuse it for authenticated users. */
+async function apiResetSeed() {
+  if (getCurrentUser()) {
+    throw new ApiError(403, "demo-mode-only");
+  }
+  const { apiRoutes } = await import("@/lib/api");
+  return apiRoutes.resetSeed();
 }

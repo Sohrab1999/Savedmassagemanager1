@@ -44,7 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator as SeparatorUi } from "@/components/ui/separator";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
 import { useNote, useCategories, useTags, useUpdateNote, useDeleteNote } from "@/hooks/queries";
-import { apiRoutes } from "@/lib/api";
+import { dataSource } from "@/services/data-source";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/stores/app-store";
@@ -219,7 +219,7 @@ export function NoteDetailSheet() {
     if (!trimmed) return;
     try {
       const existing = allTags.find((tag) => tag.name === trimmed);
-      const tag = existing ?? (await apiRoutes.createTag({ name: trimmed }));
+      const tag = existing ?? (await dataSource.createTag({ name: trimmed }));
       if (selectedTagIds.includes(tag.id)) {
         setTagInput(false);
         return;

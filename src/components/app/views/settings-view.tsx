@@ -4,9 +4,11 @@ import { useState } from "react";
 import {
   Download,
   Info,
+  LogOut,
   Monitor,
   Moon,
   RotateCcw,
+  ShieldCheck,
   Sun,
   User,
 } from "lucide-react";
@@ -32,13 +34,95 @@ import {
 import { ErrorState } from "@/components/app/states";
 import { useMounted } from "@/hooks/use-mounted";
 import { useProfile, useResetSeed, useUpdateProfile } from "@/hooks/queries";
+import { useAuth } from "@/hooks/use-auth";
 import { useI18n } from "@/lib/i18n";
 import { apiRoutes } from "@/lib/api";
+import { dataSource } from "@/services/data-source";
+import { getFirebaseStatus } from "@/services/firebase";
 import { detectTelegramEnv } from "@/lib/telegram/bridge";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const APP_VERSION = "0.1.0";
+
+function AccountCard() {
+  const { t } = useI18n();
+  const { user, signOutUser, exitDemo, configured, emulator } = useAuth();
+  const status = getFirebaseStatus();
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
+          {t("auth.account")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {user ? (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">{t("auth.email")}</span>
+              <span className="truncate font-medium" dir="ltr">
+                {user.email}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">{t("auth.account.status")}</span>
+              <Badge className="rounded-full" variant="default">
+                {t("auth.account.status.cloud")}
+              </Badge>
+            </div>
+            {configured ? (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">{t("auth.account.project")}</span>
+                <span className="truncate font-medium" dir="ltr">
+                  {status.projectId}
+                  {emulator ? ` · ${t("auth.demoBadge")}` : ""}
+                </span>
+              </div>
+            ) : null}
+            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{t("auth.signOut")}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("auth.account.signOutDesc")}
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-1.5"
+                onClick={() => {
+                  void signOutUser();
+                }}
+              >
+                <LogOut className="size-4" aria-hidden="true" />
+                {t("auth.signOut")}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">{t("auth.account.status")}</span>
+              <Badge variant="secondary" className="rounded-full">
+                {t("auth.account.status.demo")}
+              </Badge>
+            </div>
+            <p className="leading-6 text-muted-foreground">
+              {t("auth.account.demoDesc")}
+            </p>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={exitDemo}>
+              <ShieldCheck className="size-4" aria-hidden="true" />
+              {t("auth.signIn")}
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function ProfileCard() {
   const { t } = useI18n();
@@ -207,9 +291,43 @@ function AppearanceCard() {
 function DataCard() {
   const { t } = useI18n();
   const resetSeed = useResetSeed();
+  const { user } = useAuth();
+  const isCloud = Boolean(user);
+
+  const downloadJson = (payload: unknown) => {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `savedbox-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const exportData = async () => {
     try {
+      if (isCloud) {
+        // Cloud mode: export straight from the user's Firestore data.
+        const [notes, categories, tags, profile] = await Promise.all([
+          dataSource.listNotes({ archived: false }),
+          dataSource.listCategories(),
+          dataSource.listTags(),
+          dataSource.getProfile(),
+        ]);
+        downloadJson({
+          exportedAt: new Date().toISOString(),
+          source: "firestore",
+          profile,
+          notes: notes.items,
+          categories: categories.items,
+          tags: tags.items,
+        });
+        return;
+      }
       await apiRoutes.exportData();
     } catch {
       toast.error(t("toast.error"));
@@ -236,8 +354,16 @@ function DataCard() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 p-3">
           <div className="min-w-0">
             <p className="text-sm font-medium">{t("settings.reset")}</p>
-            <p className="text-xs text-muted-foreground">{t("settings.reset.desc")}</p>
+            <p className="text-xs text-muted-foreground">
+              {isCloud ? t("settings.reset.demoOnly") : t("settings.reset.desc")}
+            </p>
           </div>
+          {isCloud ? (
+            <Button variant="outline" size="sm" className="shrink-0 gap-1.5" disabled>
+              <RotateCcw className="size-4" aria-hidden="true" />
+              {t("settings.reset")}
+            </Button>
+          ) : (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
@@ -274,6 +400,7 @@ function DataCard() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -320,6 +447,7 @@ export function SettingsView() {
     <div className="space-y-4">
       <h1 className="text-lg font-bold sm:text-xl">{t("settings.title")}</h1>
       <div className="grid gap-4 xl:grid-cols-2">
+        <AccountCard />
         <ProfileCard />
         <AppearanceCard />
         <DataCard />

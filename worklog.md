@@ -89,3 +89,36 @@ Chronological record of every work step. Newest first. Each entry links to evide
 ## Baseline (pre-session)
 
 - Sandbox scaffold committed by platform: Next.js 16 + TS + Tailwind 4 + shadcn/ui + Prisma/SQLite demo (`b214b56` and initial commit).
+
+---
+
+## Session: Firebase Auth + Cloud Firestore integration (TeleVault phase 2)
+
+### Scope
+Completed and verified real Firebase Authentication + Cloud Firestore persistence for the
+Savedbox/TeleVault app. No UI redesign, no new product features; data layer + auth gate only.
+
+### New files
+- `src/services/firebase.ts` — Firebase init from `NEXT_PUBLIC_FIREBASE_*` env vars; emulator hook-up (Auth :9099 / Firestore :8080); verified-UID accessor.
+- `src/domain/types.ts` — Firestore document schemas (NoteDoc/CategoryDoc/TagDoc/ProfileDoc) + re-export of shared DTOs.
+- `src/services/repository.ts` — Firestore CRUD for notes/categories/tags/profile/stats under `users/{uid}/…`; UID always derived from verified Auth state (never from callers).
+- `src/services/data-source.ts` — dual-mode dispatch: Firestore for authenticated users, local demo API (Prisma sample data) otherwise.
+- `src/hooks/use-auth.tsx` — AuthProvider (loading/error/logout, demo-mode flag, error-code→i18n mapping).
+- `src/components/app/auth-gate.tsx` — sign-in/sign-up + explicitly labeled demo entry.
+- `firestore.rules` — per-user isolation + document validation (owner-only writes, field/type/length caps, immutable savedAt/createdAt, no profile deletion, catch-all deny).
+- `firestore.indexes.json`, `firebase.json`, `.firebaserc` — emulator/project config (local dev project `televault-dev`).
+- `scripts/rules-test.ts` — 39 security assertions vs the emulator (39/39 pass).
+- `scripts/e2e-verify.sh` — agent-browser E2E for scenarios 1-10 (15/15 pass).
+
+### Modified files
+- `src/hooks/queries.ts` — UID-scoped cache keys + dispatch through data-source.
+- `src/components/app/providers.tsx` (+AuthProvider), `app-shell.tsx` (splash + gate), `header.tsx` (account chip / demo badge), `views/settings-view.tsx` (AccountCard, mode-aware export/reset), `note-detail-sheet.tsx` (tag creation via data-source), `src/lib/i18n/dictionaries.ts` (auth.* keys fa+en), `package.json` (firebase deps + emulators script), `bun.lock`.
+
+### Verification (all against Firebase Emulator Suite — NOT production cloud)
+- Rules: 39/39 (cross-user denial, unauthenticated denial, owner CRUD, 15 validation rejections).
+- Browser E2E: 15/15 (account create, note create, refresh persistence, edit, delete, category+tag, logout/login, data intact, two-user isolation, auth error paths). Screenshots: /tmp/e2e/*.png.
+- Lint clean; tsc clean (app code). Zero browser console errors during E2E.
+
+### Configuration status (honest)
+- `.env` currently holds EMULATOR placeholders (`NEXT_PUBLIC_FIREBASE_EMULATOR=true`, project `televault-dev`). No real Firebase project credentials exist in this sandbox — production cloud persistence is NOT verified and remains blocked on real `NEXT_PUBLIC_FIREBASE_*` values from the owner's Firebase console.
+- Emulator limitation discovered: Firestore Emulator v1.22.0 rules engine does not support list iteration (`list.all/any`) at runtime → tag-array element shape is enforced by the repository + documented in rules (size cap only).

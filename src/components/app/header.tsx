@@ -1,11 +1,33 @@
 "use client";
 
-import { Bookmark, Globe, Moon, Plus, Search, Sun, SunMoon } from "lucide-react";
+import {
+  Bookmark,
+  FlaskConical,
+  Globe,
+  LogIn,
+  LogOut,
+  Moon,
+  Plus,
+  Search,
+  Sun,
+  SunMoon,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
 import { useAppStore } from "@/stores/app-store";
 import { useMounted } from "@/hooks/use-mounted";
+import { useAuth } from "@/hooks/use-auth";
 
 function ThemeToggle() {
   const { t } = useI18n();
@@ -40,7 +62,7 @@ function ThemeToggle() {
   );
 }
 
-function LanguageToggle() {
+export function LanguageToggle() {
   const { t, locale, setLocale } = useI18n();
   return (
     <Button
@@ -54,6 +76,82 @@ function LanguageToggle() {
       <Globe className="size-4" aria-hidden="true" />
       <span className="text-xs">{locale === "fa" ? "EN" : "FA"}</span>
     </Button>
+  );
+}
+
+function AccountChip() {
+  const { t } = useI18n();
+  const { user, demoMode, signOutUser, exitDemo } = useAuth();
+  const setView = useAppStore((state) => state.setView);
+
+  if (user) {
+    const label = user.displayName || user.email || "?";
+    const initial = label.charAt(0).toUpperCase();
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label={t("a11y.accountMenu")}
+            title={label}
+          >
+            <Avatar className="size-8">
+              <AvatarFallback className="bg-primary/10 text-xs font-bold text-primary">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="truncate" dir="ltr">
+            {user.email}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={async () => {
+              setView("settings");
+            }}
+          >
+            {t("nav.settings")}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={() => {
+              void signOutUser();
+            }}
+          >
+            <LogOut className="size-4" aria-hidden="true" />
+            {t("auth.signOut")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
+  // Demo mode chip: explicit label + way back to the auth gate.
+  return (
+    <div className="flex items-center gap-1">
+      <Badge
+        variant="secondary"
+        className="hidden gap-1 rounded-full px-2 py-0.5 text-[10px] sm:flex"
+      >
+        <FlaskConical className="size-3" aria-hidden="true" />
+        {t("auth.demoBadge")}
+      </Badge>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-9 gap-1.5 px-2.5"
+        aria-label={t("auth.signIn")}
+        title={t("auth.signIn")}
+        onClick={exitDemo}
+      >
+        <LogIn className="size-4" aria-hidden="true" />
+        <span className="hidden text-xs sm:inline">{t("auth.signIn")}</span>
+      </Button>
+    </div>
   );
 }
 
@@ -89,6 +187,7 @@ export function AppHeader() {
         </Button>
         <LanguageToggle />
         <ThemeToggle />
+        <AccountChip />
         <Button
           size="sm"
           className="hidden h-9 gap-1.5 lg:inline-flex"
