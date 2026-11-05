@@ -5,7 +5,7 @@
 import { Play, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { formatRelativeTime, domainOf, formatDuration } from "@/lib/format";
+import { formatNumber, formatRelativeTime, domainOf, formatDuration } from "@/lib/format";
 import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
 import { useUpdateNote } from "@/hooks/queries";
 import { toast } from "sonner";
@@ -116,6 +116,32 @@ function snippetOf(note: NoteDTO): string | null {
   );
 }
 
+/** Up to 2 tag chips + "+N" overflow; renders nothing when the note has no
+ *  tags so cards without tags never gain a row (QE4 no-layout-shift rule). */
+function TagChips({ note, compact }: { note: NoteDTO; compact?: boolean }) {
+  const { locale } = useI18n();
+  if (note.tags.length === 0) return null;
+  return (
+    <div className={cn("flex min-w-0 items-center gap-1", compact && "mt-0.5 flex-1")}>
+      {note.tags.slice(0, 2).map((tag) => (
+        <span
+          key={tag.id}
+          className={cn(
+            "max-w-24 truncate rounded-full bg-secondary px-1.5 py-0.5 text-[10px] leading-4 text-secondary-foreground",
+          )}
+        >
+          {tag.name}
+        </span>
+      ))}
+      {note.tags.length > 2 ? (
+        <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[10px] leading-4 text-muted-foreground">
+          +{formatNumber(note.tags.length - 2, locale)}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function NoteCard({
   note,
   layout,
@@ -157,6 +183,7 @@ export function NoteCard({
               {formatRelativeTime(note.savedAt, locale)}
             </span>
           </div>
+          <TagChips note={note} compact />
         </div>
         <FavoriteToggle note={note} />
       </div>
@@ -194,6 +221,7 @@ export function NoteCard({
             {formatRelativeTime(note.savedAt, locale)}
           </span>
         )}
+        <TagChips note={note} />
         <div className="mt-auto flex items-center gap-2 pt-1.5 text-[11px] text-muted-foreground">
           {note.category ? (
             <span className="flex min-w-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5">

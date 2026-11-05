@@ -6,6 +6,17 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 12 — QE4 DONE: tags visible on cards (grid + list, +N overflow, zero shift)
+- **Trigger:** Roadmap Phase 1 item QE4: "نمایش حداکثر ۲ تگ (+N) در پایین کارت گرید و انتهای ردیف لیست. DoD: کارت بدون تگ، سطر اضافه نمی‌گیرد (no layout shift)."
+- **Change (1 file):** `src/components/app/note-card.tsx` — new shared `TagChips` component (max 2 chips + `+N` with Persian digits via `formatNumber`); rendered on grid cards between snippet and meta row, and on list rows below the snippet line (`compact` variant); returns `null` for untagged notes → zero layout shift.
+- **DoD verification (agent-browser, fa):**
+  - Grid: chips render on tagged cards (e.g. "دستور پخت", "nextjs"+"بهینه‌سازی", "سلامت"+"موسیقی") — `roadmaps/evidence/qe4-after-grid-1280.png`.
+  - List: chips on 6/21 rows; geometry check — chips anchored at inline-start, date (QE1) at inline-end, no collision — `qe4-after-list-1280.png`.
+  - No-layout-shift: 15 untagged rows render at the same height as the pre-QE4 baseline (conditional render).
+  - `+N` overflow path: temporarily added a 3rd tag to "پلی‌لیست تمرین صبحگاهی" via API → chip "+۱" rendered (Persian digits) — `qe4-plusn-1280.png`; then `POST /api/seed` reseeded demo data (tags verified restored to 2). No product data touched (demo DB only).
+- **Lint:** clean. **SNAPSHOT:** v12. **State after step:** QE1–QE4 ✅; next QE5.
+- **Commit:** `feat(qe4): show up to 2 tag chips with +N overflow on note cards` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 11 — QE3 DONE: category cards clickable (dashboard-parity affordance)
 - **Trigger:** Roadmap Phase 1 item QE3: "کلیک روی کارت دسته = `setFilters({categoryId}) + setView('library')` (هم‌سو با داشبورد). DoD: رفتار سه نما (داشبورد/دسته‌ها/تگ‌ها) یکسان؛ منوی ⋯ دست‌نخورده."
 - **Changes:** `src/components/app/views/categories-view.tsx` CategoriesTab — Card upgraded to `role="button"` + `tabIndex={0}` + aria-label `a11y.openCategory` + onClick/onKeyDown (Enter/Space) → `setFilters({ categoryId })` + `setView("library")`; hover/focus styles matching note cards; `stopPropagation` on the ⋯ DropdownMenuTrigger so menu clicks never navigate. `src/lib/i18n/dictionaries.ts` — new key `a11y.openCategory` (en: "Show items in this category", fa: "نمایش موارد این دسته"), both dictionaries type-checked.

@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 11 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 12 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v9–v11 deltas:** QE1 + QE2 + QE3 implemented & verified (see §2/§7/§11).
+> **v9–v12 deltas:** QE1–QE4 implemented & verified (see §2/§7/§11).
 
 ---
 
@@ -33,7 +33,7 @@
   - **Settings**: profile, theme, language, JSON export, demo-data reset (demo-mode only, honestly scoped), environment/about.
 - **Quick capture dialog** (`src/components/app/quick-capture.tsx`): 5 content types (text/link/image/video/file), title/content/url/mediaUrl, category, comma-separated tags (fa+en comma).
 - **Note detail sheet** (`src/components/app/note-detail-sheet.tsx`): metadata, description editing (persisted), tag add/remove via datalist, favorite/archive/delete (confirm), open original, copy content.
-- **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; **QE1 (v9): list rows now show snippet AND relative saved-date together (date pinned to row end, logical `ms-auto`); verified fa-RTL + en-LTR @1280px and no-overflow @320px (`roadmaps/evidence/qe1-after-*.png`).**
+- **Note cards** (`src/components/app/note-card.tsx`): type-aware thumbnail, favorite toggle, category chip; **QE1 (v9): list rows show snippet AND relative saved-date together (date pinned to row end, logical `ms-auto`); verified fa-RTL + en-LTR @1280px and no-overflow @320px (`roadmaps/evidence/qe1-after-*.png`).** **QE4 (v12): shared `TagChips` component renders up to 2 tag chips + Persian-digit `+N` overflow on grid cards (between snippet and meta row) and list rows (below snippet line); renders null when note has no tags (no layout shift); verified incl. +۱ path (`roadmaps/evidence/qe4-*.png`, demo data reseeded after the +N probe).**
 - **Dual-mode data source** (`src/services/data-source.ts`): authenticated → Firestore repository (`src/services/repository.ts`, per-UID `users/{uid}/…`); else → demo API over Prisma/SQLite (sample data, honestly labeled).
 - **Firebase integration (emulator-verified)**: `src/services/firebase.ts` (env-driven init, Auth :9099 / Firestore :8080 hooks), `firestore.rules` (owner-only writes, field validation, catch-all deny), `firestore.indexes.json`, `scripts/rules-test.ts` (**39/39 pass**), `scripts/e2e-verify.sh` (**15/15 browser E2E pass**).
 - **i18n/RTL**: type-safe flat dictionaries fa+en (`src/lib/i18n/dictionaries.ts` — fa is the default), `dir` synced to locale, Persian digits via formatters, Vazirmatn font.
@@ -72,7 +72,7 @@
 - **Owner rule: no test code.** `scripts/rules-test.ts` (Firestore rules assertions, 39/39) and `scripts/e2e-verify.sh` (browser E2E, 15/15) are verification scripts from the Firebase phase, run on demand against the emulator.
 - **Lint:** `bun run lint` CLEAN at snapshot v8 baseline (re-run after each Phase-1 step; record here).
 - **Type check:** app code tsc clean at Firebase-phase completion.
-- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **QE1 verified 2026-11-05: fa-RTL@1280 ✓, en-LTR@1280 ✓, en@320px no-overflow (scrollWidth check: page & row false) ✓.** **QE2 verified 2026-11-05: layout toggle bounding-box fully in viewport @1280 & @390, fa-RTL + en-LTR, pageOverflowX=false; before/after screenshots (`qe2-before-*.png`, `qe2-after-{fa,en}-{1280,390}.png`); interaction regression: list-toggle works, QE1 dates intact.** **QE3 verified 2026-11-05: card click → `#/library` with category filter applied (count label "۳ مورد"), ⋯ menu opens without navigation, keyboard focus+Enter navigates, cards exposed as accessible buttons.**
+- **Browser verification (mandatory per step):** agent-browser at 1280px + 390px, fa RTL + en LTR; Phase-1 evidence PNGs stored under `roadmaps/evidence/qe*.png`. **QE1 verified 2026-11-05: fa-RTL@1280 ✓, en-LTR@1280 ✓, en@320px no-overflow (scrollWidth check: page & row false) ✓.** **QE2 verified 2026-11-05: layout toggle bounding-box fully in viewport @1280 & @390, fa-RTL + en-LTR, pageOverflowX=false; before/after screenshots (`qe2-before-*.png`, `qe2-after-{fa,en}-{1280,390}.png`); interaction regression: list-toggle works, QE1 dates intact.** **QE3 verified 2026-11-05: card click → `#/library` with category filter applied (count label "۳ مورد"), ⋯ menu opens without navigation, keyboard focus+Enter navigates, cards exposed as accessible buttons.** **QE4 verified 2026-11-05: grid + list chips render (6/21 tagged demo notes), geometry-checked RTL anchoring (chips at inline-start, date at inline-end, no collision), +N overflow path verified by temporarily tagging a note 3× ("+۱" Persian digits) then `POST /api/seed` reseed (tags restored to 2).**
 
 ## 8. Limitations & Honesty Ledger (what this repo can NOT restore alone)
 
@@ -97,8 +97,8 @@
 | Working tree | clean at last check |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — **recreated 2026-11-05**; pushed + parity proven every step |
-| Local HEAD at v11 | see `git rev-parse HEAD`; chain: `8f3b15f` → `951a6b6` (step 8) → `e7f00a2` (platform checkpoint) → `d66c2d9` (QE1) → `38196cd` (QE2) → QE3 commit — 10+ commits ahead of frozen origin |
-| Phase-1 commits | QE1 ✅ · QE2 ✅ · QE3 ✅ (QE4–QE7 follow; each step = own commit, backup parity proven) |
+| Local HEAD at v12 | see `git rev-parse HEAD`; chain: `8f3b15f` → `951a6b6` (step 8) → `e7f00a2` (platform checkpoint) → `d66c2d9` (QE1) → `38196cd` (QE2) → `177a74c` (QE3) → QE4 commit — 11+ commits ahead of frozen origin |
+| Phase-1 commits | QE1 ✅ · QE2 ✅ · QE3 ✅ · QE4 ✅ (QE5–QE7 follow; each step = own commit, backup parity proven) |
 
 Authoritative live check:
 
@@ -131,10 +131,11 @@ git rev-parse HEAD && git status --short \
 10. **QE1 done (step 9):** list-row date restored — `note-card.tsx` list layout now renders snippet + relative date together (`ms-auto` end-pin, no-overflow); verified fa-RTL/en-LTR@1280 + @320px (`roadmaps/evidence/qe1-after-fa-1280.png`, `qe1-after-en-1280.png`, `qe1-after-en-320.png`); SNAPSHOT v9; lint clean; committed & backup parity proven.
 11. **QE2 done (step 10):** library filter toolbar split — sort select + grid/list toggle moved OUT of the horizontal-scroll chip zone into an always-visible stable segment (flex `min-w-0 flex-1` chips area + `shrink-0` controls, no new i18n keys, no architecture change); verified @1280 & @390 fa-RTL + en-LTR (bounding-box in viewport, pageOverflowX=false); before/after evidence `roadmaps/evidence/qe2-*.png`; interaction regression passed (list toggle + QE1 dates intact); SNAPSHOT v10; lint clean; committed & backup parity proven.
 12. **QE3 done (step 11):** category cards in Categories view made clickable — same affordance as dashboard tiles (`setFilters({categoryId}) + setView('library')`); keyboard accessible (role=button + tabIndex + Enter/Space); ⋯ menu isolated (`stopPropagation` on trigger; menu items live in portal, unaffected); new dictionary keys `a11y.openCategory` fa+en; verified in browser: click → `#/library` filtered ("۳ مورد"), ⋯ opens without navigation, Enter-key navigates; SNAPSHOT v11; lint clean; committed & backup parity proven.
+13. **QE4 done (step 12):** `TagChips` added to `note-card.tsx` (shared by grid + list) — max 2 tag chips + `+N` (Persian digits via `formatNumber`), null-render when untagged (no layout shift); verified visually + geometrically (RTL anchoring) + `+۱` overflow path (temp 3-tag probe, demo data reseeded via `POST /api/seed`, tags restored); SNAPSHOT v12; lint clean; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 1 (active):** ~~QE1~~ ✅ · ~~QE2~~ ✅ · ~~QE3~~ ✅ → **QE4 tags-on-cards (next)** → QE5 active-filters bar → QE6 capture save hint → QE7 password-reset backlog registration. Each with DoD verification + persistence cycle.
+- **Phase 1 (active):** ~~QE1~~ ✅ · ~~QE2~~ ✅ · ~~QE3~~ ✅ · ~~QE4~~ ✅ → **QE5 active-filters bar (next)** → QE6 capture save hint → QE7 password-reset backlog registration. Each with DoD verification + persistence cycle.
 - **Phase 2 (next, after sign-off):** S7 read-consolidation → S1 server-side query/pagination (kills 500-cap) → S8 batch/transaction → S4 title/content editor UI → S3 URL-persisted filters.
 - **Phases 3–5:** G1 realtime+offline, S5 undo-delete, S2 capture unification; then S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
 - Pending owner items: D17 ruling; A1–A8 review (Phase 0 W7); new PAT for `origin` push.
