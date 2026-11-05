@@ -31,6 +31,8 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
+  type DocumentReference,
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirestoreDb } from "@/services/firebase";
 import {
@@ -117,6 +119,55 @@ function requireUid(): string {
   const user = getFirebaseAuth().currentUser;
   if (!user) throw new AuthRequiredError();
   return user.uid;
+}
+
+// ---------------------------------------------------------------------------
+// S8 — Batched writes
+//
+// Firestore allows at most 500 operations per writeBatch. Fan-outs (category
+// rename/delete, tag delete) previously issued one updateDoc per note via
+// Promise.all — up to 500 separate writes that could half-fail and leave
+// inconsistent denormalized state. Every fan-out now goes through these
+// helpers: chunked batches, each chunk ONE committed write-batch operation.
+// ---------------------------------------------------------------------------
+
+const MAX_BATCH_OPS = 500;
+
+type UserRoot = ReturnType<typeof userRoot>;
+
+async function batchedUpdate(
+  entries: Array<{ ref: DocumentReference; data: Record<string, unknown> }>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const db = getFirestoreDb();
+  for (let start = 0; start < entries.length; start += MAX_BATCH_OPS) {
+    const chunk = entries.slice(start, start + MAX_BATCH_OPS);
+    const batch = writeBatch(db);
+    for (const entry of chunk) batch.update(entry.ref, entry.data);
+    await batch.commit();
+  }
+}
+
+/** Creates missing tags with client-allocated IDs so the batch can return
+ * the new refs without re-reading. */
+async function batchedCreateTags(
+  names: string[],
+  root: UserRoot,
+): Promise<TagRefDoc[]> {
+  const created: TagRefDoc[] = [];
+  const db = getFirestoreDb();
+  for (let start = 0; start < names.length; start += MAX_BATCH_OPS) {
+    const chunk = names.slice(start, start + MAX_BATCH_OPS);
+    const batch = writeBatch(db);
+    const allocated = chunk.map((name) => {
+      const ref = doc(root.tags);
+      batch.set(ref, { name, createdAt: Date.now() } satisfies TagDoc);
+      return { id: ref.id, name };
+    });
+    await batch.commit();
+    created.push(...allocated);
+  }
+  return created;
 }
 
 function userRoot(uid: string) {
@@ -256,29 +307,37 @@ async function loadCategoryRef(categoryId: string): Promise<CategoryRefDoc | nul
   };
 }
 
-/** Tag connectOrCreate semantics, mirroring the Prisma service. */
+/** Tag connectOrCreate semantics, mirroring the Prisma service.
+ * S8: ONE indexed `in` query resolves all existing names (rules cap a note's
+ * tag list at 30, inside Firestore's 30-value disjunction limit) and missing
+ * tags are created in a single writeBatch — previously one round-trip per tag. */
 async function resolveTagRefs(names: string[]): Promise<TagRefDoc[]> {
-  const root = userRoot(requireUid());
-  const refs: TagRefDoc[] = [];
+  const wanted: string[] = [];
   const seen = new Set<string>();
   for (const raw of names) {
     const name = raw.trim();
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    const existing = await getDocs(
-      query(root.tags, where("name", "==", name), limit(1)),
-    );
-    if (!existing.empty) {
-      const hit = existing.docs[0];
-      refs.push({ id: hit.id, name: (hit.data() as unknown as TagDoc).name });
-    } else {
-      const created = await addDoc(root.tags, {
-        name,
-        createdAt: Date.now(),
-      } satisfies TagDoc);
-      refs.push({ id: created.id, name });
-    }
+    wanted.push(name);
   }
+  if (wanted.length === 0) return [];
+
+  const root = userRoot(requireUid());
+  const refs: TagRefDoc[] = [];
+  const missing: string[] = [];
+
+  const existing = await getDocs(query(root.tags, where("name", "in", wanted)));
+  const idByName = new Map<string, string>();
+  for (const hit of existing.docs) {
+    idByName.set((hit.data() as unknown as TagDoc).name, hit.id);
+  }
+  for (const name of wanted) {
+    const id = idByName.get(name);
+    if (id) refs.push({ id, name });
+    else missing.push(name);
+  }
+
+  if (missing.length > 0) refs.push(...(await batchedCreateTags(missing, root)));
   return refs;
 }
 
@@ -501,8 +560,8 @@ export async function updateCategory(
       icon: merged.icon,
       color: merged.color,
     };
-    await Promise.all(
-      owned.docs.map((entry) => updateDoc(entry.ref, { category: ref })),
+    await batchedUpdate(
+      owned.docs.map((entry) => ({ ref: entry.ref, data: { category: ref } })),
     );
     invalidateNotesSnapshot();
   }
@@ -524,11 +583,13 @@ export async function deleteCategory(id: string): Promise<{ ok: true }> {
   const owned = await getDocs(
     query(root.notes, where("categoryId", "==", id), limit(MAX_NOTES_FETCH)),
   );
-  await Promise.all(
-    owned.docs.map((entry) =>
-      updateDoc(entry.ref, { categoryId: null, category: null }),
-    ),
+  await batchedUpdate(
+    owned.docs.map((entry) => ({
+      ref: entry.ref,
+      data: { categoryId: null, category: null },
+    })),
   );
+  invalidateNotesSnapshot();
   return { ok: true };
 }
 
@@ -585,9 +646,13 @@ export async function deleteTag(id: string): Promise<{ ok: true }> {
   const owned = await getDocs(
     query(root.notes, where("tags", "array-contains", { id, name }), limit(MAX_NOTES_FETCH)),
   );
-  await Promise.all(
-    owned.docs.map((entry) => updateDoc(entry.ref, { tags: arrayRemove({ id, name }) })),
+  await batchedUpdate(
+    owned.docs.map((entry) => ({
+      ref: entry.ref,
+      data: { tags: arrayRemove({ id, name }) },
+    })),
   );
+  invalidateNotesSnapshot();
   return { ok: true };
 }
 

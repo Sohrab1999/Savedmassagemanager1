@@ -6,6 +6,20 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 17 — S8 DONE: all fan-outs moved to writeBatch + one-query tag resolve (emulator-verified)
+- **Trigger:** Roadmap Phase 2 item S8 (T3): "fan-out دسته و resolve تگ با writeBatch/runTransaction".
+- **Changes (`src/services/repository.ts`):**
+  - New batch helpers: `batchedUpdate` (chunked `writeBatch`, 500 ops/chunk — Firestore's hard batch limit) and `batchedCreateTags` (client-allocated IDs so created tags return without a re-read).
+  - `updateCategory` rename fan-out: `Promise.all(updateDoc × N)` → **1 writeBatch commit per ≤500 notes** (atomic per chunk; no half-failed inconsistent denormalized state).
+  - `deleteCategory` fan-out (`categoryId:null, category:null`) and `deleteTag` fan-out (`tags: arrayRemove`) → same `batchedUpdate` path.
+  - `resolveTagRefs`: N sequential `where(name==)` queries → **one `where(name in names)` query** (≤30 values — matches the rules' 30-tag cap) + missing tags created in ONE batch. Tag attach on create/update now costs 1 read + ≤1 batch instead of 1 round-trip per tag.
+- **DoD verification (live, Firebase Emulator Suite on :8080 — started via `bunx firebase-tools emulators:start`):**
+  1. `bun scripts/rules-test.ts` → **39/39 PASS** (S8 DoD: rules still green).
+  2. Ephemeral probe (`tool-results/s8-batch-probe.ts`, gitignored, not committed — honors the no-test-code rule): category rename with **60 notes = 1 batch commit, 60/60 updated, 0 stale** (768 ms); tag resolve (3 wanted: 1 existing via `in` query + 2 batch-created in 1 commit) PASS; tag-delete fan-out (10 tagged notes stripped via `arrayRemove` in 1 batch, 0 remain) PASS.
+- **Demo-mode regression:** library view renders 0 alerts, no overflow (S8 is Cloud-only; demo path untouched).
+- **Lint:** clean. **SNAPSHOT:** v17. **Next:** S1 (server-side query + pagination — the phase's core).
+- **Commit:** `refactor(s8): replace per-doc fan-outs with chunked writeBatch + one-query tag resolve` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 16 — PHASE 2 OPENED (owner order) + S7 DONE: read consolidation via shared notes snapshot
 - **Trigger:** Owner instruction (Persian, 2026-11-05): "فاز ۲ — تعمیر بنیان داده — پیش‌نیاز هر مقیاس‌پذیری — ادامه بده" + the standing 10-point persistence mandate re-issued. This message doubles as the Phase-1 sign-off that Step 15 was waiting for.
 - **Pre-step persistence debt (platform rollback side-effects):**
