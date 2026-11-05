@@ -67,7 +67,13 @@ export interface ListNotesQuery {
   favorite?: boolean;
   archived?: boolean;
   sort?: string;
+  pageToken?: string;
+  pageSize?: number;
 }
+
+/** S1: page size for the paginated notes list (UI shows a "load more" per page). */
+export const NOTES_PAGE_SIZE = 30;
+const MAX_PAGE_SIZE = 100;
 
 export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse> {
   const where: Prisma.NoteWhereInput = { AND: [] };
@@ -109,17 +115,29 @@ export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse
         ? { title: "asc" }
         : { savedAt: "desc" };
 
+  const take = Math.min(Math.max(query.pageSize ?? NOTES_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  // Opaque offset cursor: page N starts after N×take rows. Combined with the
+  // stable orderBy below this yields deterministic pages.
+  const decodedOffset = Number.parseInt(query.pageToken ?? "0", 10);
+  const offset = Number.isFinite(decodedOffset) && decodedOffset > 0 ? decodedOffset : 0;
+
   const [items, total] = await Promise.all([
     db.note.findMany({
       where,
       orderBy,
       include: noteInclude,
-      take: 300,
+      take,
+      skip: offset,
     }),
     db.note.count({ where }),
   ]);
 
-  return { items: items.map(toNoteDTO), total };
+  const nextOffset = offset + items.length;
+  return {
+    items: items.map(toNoteDTO),
+    total,
+    nextCursor: nextOffset < total ? String(nextOffset) : null,
+  };
 }
 
 export async function getNote(id: string): Promise<NoteDTO | null> {

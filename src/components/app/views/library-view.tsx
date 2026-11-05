@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Check,
@@ -8,6 +8,7 @@ import {
   Filter,
   LayoutGrid,
   List,
+  Loader2,
   Plus,
   Search,
   Star,
@@ -79,10 +80,14 @@ export function LibraryView() {
     [filters.tagIds, setFilters],
   );
 
-  const items = notesQuery.data?.items ?? [];
-  const total = notesQuery.data?.total ?? 0;
+  const items = useMemo(
+    () => notesQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [notesQuery.data],
+  );
+  const total = notesQuery.data?.pages[0]?.total ?? 0;
   const categories = categoriesQuery.data?.items ?? [];
   const tags = tagsQuery.data?.items ?? [];
+  const remaining = Math.max(total - items.length, 0);
 
   const isDefaultFilters =
     !hasActiveFilters && filters.sort === "newest";
@@ -437,6 +442,24 @@ export function LibraryView() {
       ) : null}
 
       {renderBody()}
+
+      {/* S1 — load more: appended 30-item pages; hidden when everything is shown. */}
+      {notesQuery.hasNextPage && !notesQuery.isError && items.length > 0 ? (
+        <div className="flex justify-center pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            disabled={notesQuery.isFetchingNextPage}
+            onClick={() => notesQuery.fetchNextPage()}
+          >
+            {notesQuery.isFetchingNextPage ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : null}
+            {t("library.loadMore", { n: formatNumber(remaining, locale) })}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

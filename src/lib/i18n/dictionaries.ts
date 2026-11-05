@@ -74,6 +74,7 @@ export const en = {
   "library.empty.title": "Nothing saved yet",
   "library.empty.desc": "Use quick capture to add your first item.",
   "library.clearFilters": "Clear filters",
+  "library.loadMore": "Load more ({n} remaining)",
 
   "categories.title": "Categories",
   "categories.tab.categories": "Categories",
@@ -297,6 +298,7 @@ export const fa: Record<I18nKey, string> = {
   "library.empty.title": "هنوز چیزی ذخیره نشده",
   "library.empty.desc": "با ثبت سریع، اولین مورد خود را اضافه کنید.",
   "library.clearFilters": "پاک کردن فیلترها",
+  "library.loadMore": "نمایش بیشتر ({n} مورد باقی‌مانده)",
 
   "categories.title": "دسته‌ها",
   "categories.tab.categories": "دسته‌ها",

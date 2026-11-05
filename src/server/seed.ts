@@ -10,7 +10,7 @@ export interface SeedCounts {
   tags: number;
 }
 
-export async function resetSeed(): Promise<SeedCounts> {
+export async function resetSeed(options?: { extraNotes?: number }): Promise<SeedCounts> {
   await db.noteTag.deleteMany();
   await db.note.deleteMany();
   await db.tag.deleteMany();
@@ -46,6 +46,37 @@ export async function resetSeed(): Promise<SeedCounts> {
             .map((name) => ({ tagId: tagIdByName.get(name) }))
             .filter((row): row is { tagId: string } => Boolean(row.tagId)),
         },
+      },
+    });
+    noteCount += 1;
+  }
+
+  // S1 — scale scenario (demo-only, opt-in via POST /api/seed {extraNotes}):
+  // deterministic filler notes so pagination/search correctness can be verified
+  // at 600+ items without polluting the default sample (default = none).
+  const extraNotes = Math.min(Math.max(Math.trunc(options?.extraNotes ?? 0), 0), 1000);
+  const fillerTypes = ["text", "link", "image", "video", "file"] as const;
+  for (let i = 1; i <= extraNotes; i += 1) {
+    const type = fillerTypes[i % fillerTypes.length];
+    const marker = i % 7 === 0 ? " نمونه‌جستجو" : "";
+    await db.note.create({
+      data: {
+        type,
+        title: `یادداشت آزمایشی ${i}${marker}`,
+        content:
+          type === "text"
+            ? `متن آزمایشی شمارهٔ ${i} برای سناریوی مقیاس.${marker}`
+            : null,
+        url: type === "link" ? `https://example.com/item/${i}` : null,
+        mediaUrl: type === "image" ? `https://example.com/img/${i}.jpg` : null,
+        sourceType: "manual",
+        savedAt: new Date(Date.now() - (i * 137) % (90 * 24 * 60) * 60_000),
+        categoryId:
+          i % 3 === 0
+            ? (categoryIdBySlug.get(seedCategories[i % seedCategories.length].slug) ?? null)
+            : null,
+        isFavorite: i % 11 === 0,
+        isArchived: i % 13 === 0,
       },
     });
     noteCount += 1;

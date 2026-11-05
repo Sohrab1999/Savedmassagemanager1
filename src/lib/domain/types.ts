@@ -56,6 +56,8 @@ export interface NoteDTO {
 export interface NoteListResponse {
   items: NoteDTO[];
   total: number;
+  /** Opaque cursor for the next page (S1); null when no more pages. */
+  nextCursor: string | null;
 }
 
 export interface StatsDTO {
@@ -84,6 +86,10 @@ export interface NoteFilters {
   favorite?: boolean;
   archived?: boolean;
   sort?: NoteSort;
+  /** S1 pagination: opaque cursor from the previous response. */
+  pageToken?: string;
+  /** S1 pagination: page size (server clamps to its own maximum). */
+  pageSize?: number;
 }
 
 export interface CreateNoteInput {

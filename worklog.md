@@ -6,6 +6,24 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 18 — S1 DONE: server-side query + pagination in BOTH modes (emulator + demo verified at 600 items)
+- **Trigger:** Roadmap Phase 2 item S1 (T1/F2 — the phase's core): kill the 500 cap, server-side query, 30-item pages.
+- **Contract (`src/lib/domain/types.ts`):** `NoteListResponse` + `nextCursor: string | null`; `NoteFilters` + `pageToken`/`pageSize`.
+- **Demo server (`src/server/services/notes.ts` + `/api/notes`):** real pagination (Prisma `skip/take` + `count`) replacing the silent `take: 300`; page size 30 (max 100).
+- **Cloud repository (`src/services/repository.ts`):**
+  - `fetchAllNotes` **DELETED** (the 500-cap path is gone from the codebase). `SNAPSHOT_MAX_NOTES` cap on the S7 snapshot **removed** (snapshot = one full uncapped read per session window; North-Star Silent-Loss = 0).
+  - **Structured path** (no q, no tag filter): `where(type/categoryId/isFavorite/isArchived)` + `orderBy(savedAt|title)` + `limit(30)` + `startAfter(docRef-cursor)` + `getCountFromServer` for the exact total.
+  - **Snapshot path** (q set or tag filter): client `filterAndSort` over the shared S7 snapshot, offset-paginated — exact semantics preserved (web SDK has no substring search; `array-contains` needs the full denormalized `{id,name}` object, not an id) — documented honestly in code + roadmap.
+  - **Divergence bug found & fixed:** cloud `title` sort emitted DESC while demo emits ASC — direction now `oldest||title → asc` (demo parity).
+- **Client (`src/hooks/queries.ts` + `library-view.tsx` + i18n):** `useNotes` → `useInfiniteQuery` + "Load more ({n} remaining) / نمایش بیشتر" button; `placeholderData` REMOVED from the infinite query (kept stale accumulated pages across key changes → duplicate React keys — fixed and verified).
+- **Scale seeding:** `POST /api/seed {extraNotes: n}` (demo-only, ≤1000, default 0) — deterministic filler notes with a searchable marker every 7th.
+- **Verification:**
+  - Demo @623 items: page contract 30/575/cursor-30; search «نمونه‌جستجو» = **79 exact** (85 markers − 6 archived); last page 5 items + null cursor; UI counter ۵۷۵, Load More ۵۴۵→۵۱۵ after click; search UI ۷۹ (`s1-demo-fa-*.png`).
+  - **Cloud @601 items LIVE on the emulator** (600 notes written via REST `Bearer owner` to the probe user): counter ۵۵۵ exact via `getCountFromServer` (601−46 archived); Load More cursor paging 30→60; search via snapshot path = 79; **filter×sort matrix** — type=link ۱۱۱ (120−9), favorite ۵۰ (54−4), sort=title `t1,1,10,100,101` (matches direct REST ground-truth query AND demo semantics), sort=oldest 600,599,597 (598 correctly excluded as archived) (`s1-cloud-fa-1280.png`, `s1-cloud-fa-search-1280.png`, `s1-cloud-en-1280.png`, `s1-demo-en-390.png` — mobile no overflow).
+  - `rules-test.ts`: **39/39 PASS** after the changes. Demo seed restored to default (21 visible).
+- **Lint:** clean. **SNAPSHOT:** v18. **Next:** S4 (title/content editor UI) → S3 (URL filters).
+- **Commit:** `feat(s1): server-side paginated notes query in both modes, 500-cap removed` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 17 — S8 DONE: all fan-outs moved to writeBatch + one-query tag resolve (emulator-verified)
 - **Trigger:** Roadmap Phase 2 item S8 (T3): "fan-out دسته و resolve تگ با writeBatch/runTransaction".
 - **Changes (`src/services/repository.ts`):**

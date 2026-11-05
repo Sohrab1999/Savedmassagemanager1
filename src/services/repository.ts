@@ -23,12 +23,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getCountFromServer,
   getDoc,
   getDocs,
   limit,
   orderBy,
   query,
   setDoc,
+  startAfter,
   updateDoc,
   where,
   writeBatch,
@@ -72,9 +74,6 @@ const VALID_TYPES: NoteType[] = ["text", "link", "image", "video", "file"];
 // per freshness window.
 // ---------------------------------------------------------------------------
 
-/** Cost guard for the shared snapshot; derived views stay honest because the
- * list path (S1) stops depending on this fetch entirely. */
-const SNAPSHOT_MAX_NOTES = 500;
 const SNAPSHOT_TTL_MS = 60_000;
 
 interface NotesSnapshot {
@@ -98,9 +97,11 @@ async function getNotesSnapshot(): Promise<NoteDTO[]> {
   if (!snapshotInFlight) {
     snapshotInFlight = (async () => {
       const root = userRoot(requireUid());
-      const snapshot = await getDocs(
-        query(root.notes, orderBy("savedAt", "desc"), limit(SNAPSHOT_MAX_NOTES)),
-      );
+      // S1: deliberately UNCAPPED — the snapshot is the one full read per
+      // session window that every derived view (stats/categories/tags and
+      // q/tag list filtering) shares. Capping it here would re-introduce the
+      // silent >500 loss (North-Star: Silent-Loss = 0).
+      const snapshot = await getDocs(query(root.notes, orderBy("savedAt", "desc")));
       const data = snapshot.docs.map((entry) => mapNote(entry.id, entry.data()));
       notesSnapshot = { data, fetchedAt: Date.now() };
       return data;
@@ -236,18 +237,8 @@ function mapCategory(
 }
 
 // ---------------------------------------------------------------------------
-// Shared fetchers / filters (Prisma-service parity)
+// Shared filters (Prisma-service parity)
 // ---------------------------------------------------------------------------
-
-/** Full read for the notes list (S1 will replace this path with a
- * server-side paginated query). Kept for exact client-side semantics today. */
-async function fetchAllNotes(): Promise<NoteDTO[]> {
-  const root = userRoot(requireUid());
-  const snapshot = await getDocs(
-    query(root.notes, orderBy("savedAt", "desc"), limit(MAX_NOTES_FETCH)),
-  );
-  return snapshot.docs.map((entry) => mapNote(entry.id, entry.data()));
-}
 
 function matchesText(note: NoteDTO, q: string): boolean {
   const haystack = [note.title, note.content, note.description, note.url, note.fileName, note.sourceChat]
@@ -342,13 +333,107 @@ async function resolveTagRefs(names: string[]): Promise<TagRefDoc[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Notes
+// Notes (S1 — server-side structured query + pagination)
+//
+// Two paths, chosen per request so filter semantics stay EXACT in both modes:
+//  • Structured path (no free-text q, ≤1 tag filter impossible-with-id problem
+//    → actually: no q AND no tag filter): Firestore where/orderBy/limit/startAfter
+//    with a 30-item page + getCountFromServer for the exact total. No 500 cap.
+//  • Snapshot path (q set, or tag filter set): the web SDK has no substring
+//    search, and tag filters are stored as denormalized {id,name} objects that
+//    array-contains cannot match from an id alone — so these run client-side
+//    over the shared S7 snapshot, which is a FULL read (500 cap removed) and
+//    cached for the whole session window. Silent truncation is impossible on
+//    both paths.
 // ---------------------------------------------------------------------------
 
+const NOTES_PAGE_SIZE = 30;
+
+function encodeCursor(ref: DocumentReference): string {
+  return btoa(encodeURIComponent(ref.path));
+}
+
+function decodeCursor(token: string | undefined): DocumentReference | null {
+  if (!token) return null;
+  try {
+    const path = decodeURIComponent(atob(token));
+    return doc(getFirestoreDb(), path);
+  } catch {
+    return null;
+  }
+}
+
+/** Numeric offset cursor for the snapshot path (q / tag filtering). */
+function decodeOffset(token: string | undefined): number {
+  const parsed = Number.parseInt(token ?? "0", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/** Filters expressible as Firestore where-clauses (the structured path). */
+function supportsStructuredQuery(filters: NoteFilters): boolean {
+  return !filters.q?.trim() && !(filters.tagIds && filters.tagIds.length > 0);
+}
+
+async function listNotesStructured(filters: NoteFilters): Promise<NoteListResponse> {
+  const root = userRoot(requireUid());
+  const conditions: Array<ReturnType<typeof where>> = [];
+  if (filters.type && filters.type !== "all" && VALID_TYPES.includes(filters.type)) {
+    conditions.push(where("type", "==", filters.type));
+  }
+  if (filters.categoryId === "none") conditions.push(where("categoryId", "==", null));
+  else if (filters.categoryId && filters.categoryId !== "all") {
+    conditions.push(where("categoryId", "==", filters.categoryId));
+  }
+  if (filters.favorite) conditions.push(where("isFavorite", "==", true));
+  if (filters.archived !== undefined) conditions.push(where("isArchived", "==", filters.archived));
+
+  const sort = filters.sort ?? "newest";
+  const orderByField = sort === "title" ? "title" : "savedAt";
+  // Demo-mode parity (Prisma service): title sorts ASC, newest/oldest control
+  // savedAt direction. This must match src/server/services/notes.ts exactly.
+  const direction = sort === "oldest" || sort === "title" ? "asc" : "desc";
+
+  const base = query(root.notes, ...conditions, orderBy(orderByField, direction));
+  const cursor = decodeCursor(filters.pageToken);
+  const pageQuery = cursor
+    ? query(base, startAfter(cursor), limit(NOTES_PAGE_SIZE))
+    : query(base, limit(NOTES_PAGE_SIZE));
+
+  const [pageSnapshot, countSnapshot] = await Promise.all([
+    getDocs(pageQuery),
+    getCountFromServer(base),
+  ]);
+
+  const docs = pageSnapshot.docs;
+  const last = docs[docs.length - 1];
+  const total = countSnapshot.data().count;
+  return {
+    items: docs.map((entry) => mapNote(entry.id, entry.data())),
+    total,
+    nextCursor:
+      last && docs.length === NOTES_PAGE_SIZE && total > docs.length
+        ? encodeCursor(last.ref)
+        : null,
+  };
+}
+
 export async function listNotes(filters: NoteFilters): Promise<NoteListResponse> {
-  const notes = await fetchAllNotes();
-  const items = filterAndSort(notes, filters);
-  return { items, total: items.length };
+  if (supportsStructuredQuery(filters)) {
+    return listNotesStructured(filters);
+  }
+  // Exact-semantics path over the shared session snapshot (full read, cached),
+  // paginated with a numeric offset cursor for uniform UI behavior.
+  const notes = await getNotesSnapshot();
+  const sorted = filterAndSort(notes, filters);
+  const pageSize = Math.min(Math.max(filters.pageSize ?? NOTES_PAGE_SIZE, 1), 100);
+  const offset = decodeOffset(filters.pageToken);
+  const items = sorted.slice(offset, offset + pageSize);
+  const next = offset + items.length;
+  return {
+    items,
+    total: sorted.length,
+    nextCursor: next < sorted.length ? String(next) : null,
+  };
 }
 
 export async function getNote(id: string): Promise<NoteDTO> {

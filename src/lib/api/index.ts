@@ -25,6 +25,8 @@ function buildNotesQuery(filters: NoteFilters): string {
   if (filters.archived !== undefined)
     params.set("archived", String(filters.archived));
   if (filters.sort) params.set("sort", filters.sort);
+  if (filters.pageToken) params.set("pageToken", filters.pageToken);
+  if (filters.pageSize) params.set("pageSize", String(filters.pageSize));
   const qs = params.toString();
   return qs ? `?${qs}` : "";
 }

@@ -8,6 +8,7 @@
 // verified UID so different users never share cached entries.
 
 import {
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -55,11 +56,18 @@ export function useStats() {
   return useQuery({ queryKey: qk.stats(), queryFn: () => dataSource.stats() });
 }
 
+/** S1 — paginated notes list. One 30-item page per queryFn call; the UI appends
+ * pages via fetchNextPage ("load more"). Filter changes reset automatically
+ * because the filters object is part of the cache key. NOTE: no
+ * `placeholderData` here — keeping the previous InfiniteData across filter
+ * changes renders stale accumulated pages and duplicates keys. */
 export function useNotes(filters: LibraryFiltersState) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: qk.notes(filters),
-    queryFn: () => dataSource.listNotes(toApiFilters(filters)),
-    placeholderData: (previous) => previous,
+    queryFn: ({ pageParam }) =>
+      dataSource.listNotes({ ...toApiFilters(filters), pageToken: pageParam || undefined }),
+    initialPageParam: "",
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
 }
 

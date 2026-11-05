@@ -18,6 +18,10 @@ export async function GET(request: Request) {
       archived:
         archivedParam === null ? undefined : archivedParam === "true",
       sort: params.get("sort") ?? undefined,
+      pageToken: params.get("pageToken") ?? undefined,
+      pageSize: params.get("pageSize")
+        ? Number.parseInt(params.get("pageSize") as string, 10) || undefined
+        : undefined,
     });
     return NextResponse.json(result);
   } catch (error) {
