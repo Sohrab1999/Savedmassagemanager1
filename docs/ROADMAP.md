@@ -101,6 +101,10 @@ Items that can only be executed once the owner activates the corresponding provi
 2. Bookmarklet
 3. Browser Extension; OCR; auto-tag suggestions; semantic search; AI summarization; reading reminders; related items
 
+## Product strategy wave — "Next Value" (registered 2026-11-07)
+
+The senior Product-Strategist analysis (mandated by the owner) produced a second standard checkbox roadmap: **`roadmaps/PRODUCT-STRATEGY-ROADMAP.md`** (N1–N10 feature cards, 5-bucket categorization, Top-10 priority scoring with the same formula as the first roadmap, Opportunity Map, value-vs-cost table, explicit warnings, and execution phases **6–9** continuing the numbering of `FEATURE-LIBRARY-UPGRADE-ROADMAP.md` phases 1–5). It also formalizes the P1 fast-follow backlog above into candidate items (e.g. N8 PWA). **Standing discipline: no N-item starts without an explicit owner order**, and the G2 AI decision remains owner-gated (§ "پکیج تصمیم G2"). This list remains a superset reference; when an owner order arrives, the authoritative checklist lives in the strategy roadmap.
+
 ---
 
 ## Standing rule (Persistence Protocol)
