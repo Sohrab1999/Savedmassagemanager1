@@ -150,7 +150,7 @@
 | Working tree | Clean of tracked modifications at close-out (the v29 docs commit is the last commit; gitignored runtime noise may appear) — verify live |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` shows `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea` (frozen); **push blocked (no credential)**; unchanged at v29 |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — pushed + parity proven every step (4th wipe history in §8) |
-| Local HEAD at v29 | see `git rev-parse HEAD`. Chain: … v28 docs `143b9ce` → v28 ledger amendment `04fdd66` → **step-29 feature commit (`feat(n3,n4,n5): persian search normalization + highlight, interactive dashboard, trash management`)** → **v29 snapshot/worklog docs commit (the live HEAD)** — 35+ commits ahead of frozen origin |
+| Local HEAD at v29 | see `git rev-parse HEAD`. Chain: … v28 docs `143b9ce` → v28 ledger amendment `04fdd66` → **step-29 feature commit `15f66c7` (`feat(n3,n4,n5): persian search normalization + highlight, interactive dashboard, trash management` — 33 files: 12 modified + 3 new src + runbook + roadmap checkboxes + 15 evidence pngs)** → **step-29 docs commit `9601980` (SNAPSHOT v29 + worklog + docs/ROADMAP.md)** → **v29 ledger amendment (the live HEAD)** — 37+ commits ahead of frozen origin |
 | Phase status | **Roadmap #1: Phases 1–4 ✅, Phase 5 (P1) FROZEN. Roadmap #2: wave 6 COMPLETE (N1+N2+N3 ✅), wave 7 N4+N5 ✅ / N10 ⏳ owner order; waves 8–9 ⏳; G2 ⏸ owner decision.** |
 
 **Liveness checks (step 29):**
