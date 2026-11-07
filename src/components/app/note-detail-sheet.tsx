@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -11,7 +11,6 @@ import {
   Link2,
   MessageSquareQuote,
   Pencil,
-  Plus,
   Star,
   Trash2,
   X,
@@ -45,6 +44,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator as SeparatorUi } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
+import { TagChipsInput } from "@/components/app/tag-chips-input";
 import {
   useNote,
   useCategories,
@@ -53,7 +53,6 @@ import {
   useDeleteNote,
   useRestoreNote,
 } from "@/hooks/queries";
-import { dataSource } from "@/services/data-source";
 import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
@@ -197,7 +196,6 @@ export function NoteDetailSheet() {
   const [description, setDescription] = useState("");
   const [descriptionDirty, setDescriptionDirty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [tagInput, setTagInput] = useState(false);
   // S4 — title/content editor state (edit → save/cancel in the sheet).
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -215,11 +213,6 @@ export function NoteDetailSheet() {
     setEditContent(note.content ?? "");
   }
 
-  const selectedTagIds = useMemo(
-    () => note?.tags.map((tag) => tag.id) ?? [],
-    [note?.tags],
-  );
-
   const patchNote = async (patch: Parameters<typeof updateNote.mutateAsync>[0]["patch"]) => {
     if (!note) return;
     try {
@@ -231,32 +224,12 @@ export function NoteDetailSheet() {
     }
   };
 
-  const addTag = async (name: string) => {
-    if (!note) return;
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    try {
-      const existing = allTags.find((tag) => tag.name === trimmed);
-      const tag = existing ?? (await dataSource.createTag({ name: trimmed }));
-      if (selectedTagIds.includes(tag.id)) {
-        setTagInput(false);
-        return;
-      }
-      await updateNote.mutateAsync({
-        id: note.id,
-        patch: { tagNames: [...note.tags.map((item) => item.name), trimmed] },
-      });
-      setTagInput(false);
-    } catch {
-      toast.error(t("toast.error"));
-    }
-  };
-
-  const removeTag = async (tagName: string) => {
-    if (!note) return;
-    await patchNote({
-      tagNames: note.tags.map((tag) => tag.name).filter((name) => name !== tagName),
-    });
+  // S2 — ONE tag-entry UX shared with quick capture: the shared chip input
+  // hands us the full new name list; a single updateNote patch applies it.
+  // Both demo (Prisma connectOrCreate) and cloud (resolveTagRefs) create
+  // missing tags from tagNames, so no pre-creation step is needed here.
+  const handleTagsChange = (names: string[]) => {
+    void patchNote({ tagNames: names });
   };
 
   const copyContent = async () => {
@@ -494,56 +467,17 @@ export function NoteDetailSheet() {
               </Select>
             </div>
 
-            {/* Tags */}
+            {/* Tags — S2 shared chip input (same UX as quick capture) */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
                 {t("note.detail.tags")}
               </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {note.tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    variant="secondary"
-                    className="gap-1 rounded-full ps-2.5 pe-1"
-                  >
-                    {tag.name}
-                    <button
-                      type="button"
-                      aria-label={t("common.delete")}
-                      onClick={() => removeTag(tag.name)}
-                      className="flex size-4 items-center justify-center rounded-full hover:bg-background/60"
-                    >
-                      <X className="size-3" aria-hidden="true" />
-                    </button>
-                  </Badge>
-                ))}
-                {tagInput ? (
-                  <input
-                    autoFocus
-                    className="h-7 w-28 rounded-full border bg-background px-2.5 text-xs outline-none focus:border-primary"
-                    placeholder={t("note.detail.addTag")}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        addTag((event.target as HTMLInputElement).value);
-                      }
-                      if (event.key === "Escape") setTagInput(false);
-                    }}
-                    onBlur={(event) => {
-                      if (event.target.value.trim()) addTag(event.target.value);
-                      else setTagInput(false);
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setTagInput(true)}
-                    className="flex h-7 items-center gap-1 rounded-full border border-dashed px-2.5 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-                  >
-                    <Plus className="size-3" aria-hidden="true" />
-                    {t("note.detail.addTag")}
-                  </button>
-                )}
-              </div>
+              <TagChipsInput
+                tags={note.tags.map((tag) => tag.name)}
+                onChange={handleTagsChange}
+                suggestions={allTags.map((tag) => tag.name)}
+                ariaLabel={t("note.detail.tags")}
+              />
             </div>
 
             {/* Editable description */}

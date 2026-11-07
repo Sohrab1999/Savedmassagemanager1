@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ClipboardEvent } from "react";
 import {
   File,
   Image as ImageIcon,
@@ -29,7 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
-import { useCategories, useCreateNote } from "@/hooks/queries";
+import { TagChipsInput } from "@/components/app/tag-chips-input";
+import { useCategories, useCreateNote, useTags } from "@/hooks/queries";
 import { useI18n } from "@/lib/i18n";
 import { NOTE_TYPES, type NoteType } from "@/lib/domain/types";
 import { useAppStore } from "@/stores/app-store";
@@ -43,7 +44,7 @@ interface FormState {
   url: string;
   mediaUrl: string;
   categoryId: string;
-  tagsInput: string;
+  tags: string[];
 }
 
 const emptyForm: FormState = {
@@ -53,7 +54,7 @@ const emptyForm: FormState = {
   url: "",
   mediaUrl: "",
   categoryId: "none",
-  tagsInput: "",
+  tags: [],
 };
 
 const TYPE_ICONS: Record<NoteType, LucideIcon> = {
@@ -69,10 +70,13 @@ export function QuickCapture() {
   const open = useAppStore((state) => state.captureOpen);
   const setOpen = useAppStore((state) => state.setCaptureOpen);
   const categoriesQuery = useCategories();
+  const tagsQuery = useTags();
   const createNote = useCreateNote();
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  // S2 — set when a pasted URL auto-converts the form to a link note.
+  const [linkDetected, setLinkDetected] = useState(false);
 
   // Reset the form whenever the dialog opens (render-phase state adjustment).
   const [lastOpen, setLastOpen] = useState(open);
@@ -81,6 +85,7 @@ export function QuickCapture() {
     if (open) {
       setForm(emptyForm);
       setError(null);
+      setLinkDetected(false);
     }
   }
 
@@ -104,10 +109,7 @@ export function QuickCapture() {
       }
     }
 
-    const tagNames = form.tagsInput
-      .split(/[,،]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean);
+    const tagNames = form.tags;
 
     try {
       await createNote.mutateAsync({
@@ -127,6 +129,18 @@ export function QuickCapture() {
   };
 
   const categories = categoriesQuery.data?.items ?? [];
+  const existingTagNames = tagsQuery.data?.items.map((tag) => tag.name) ?? [];
+
+  // S2 — pasting a bare URL into the title auto-converts the form to a link
+  // note (type=link + URL filled), so the capture flow never makes the user
+  // re-type the address. Non-URL pastes behave normally.
+  const handleTitlePaste = (event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData("text").trim();
+    if (!/^https?:\/\/\S+$/i.test(text)) return;
+    event.preventDefault();
+    setForm((current) => ({ ...current, type: "link", url: text }));
+    setLinkDetected(true);
+  };
 
   // QE6 — causal reason shown on the disabled save button (title attr) and
   // visibly under the title field, so a first save never ends in an error.
@@ -188,10 +202,12 @@ export function QuickCapture() {
               id="capture-title"
               value={form.title}
               onChange={(event) => patch({ title: event.target.value })}
+              onPaste={handleTitlePaste}
               placeholder={t("capture.titlePlaceholder")}
             />
             <p className="text-[11px] text-muted-foreground" role="status">
-              {saveDisabledReason ?? t("capture.titleHint")}
+              {saveDisabledReason ??
+                (linkDetected ? t("capture.linkDetected") : t("capture.titleHint"))}
             </p>
           </div>
 
@@ -263,11 +279,12 @@ export function QuickCapture() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="capture-tags">{t("capture.tagsLabel")}</Label>
-              <Input
+              <TagChipsInput
                 id="capture-tags"
-                value={form.tagsInput}
-                onChange={(event) => patch({ tagsInput: event.target.value })}
-                placeholder={t("capture.tagsPlaceholder")}
+                tags={form.tags}
+                onChange={(tags) => patch({ tags })}
+                suggestions={existingTagNames}
+                ariaLabel={t("capture.tagsLabel")}
               />
             </div>
           </div>

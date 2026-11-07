@@ -6,6 +6,25 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 24 — S2 DONE: capture unification (shared tag chips + paste-link detection) — PHASE 3 COMPLETE
+- **Trigger:** Roadmap Phase 3 item S2 (owner order): «کامپوننت چیپ‌تگ مشترک؛ در Paste لینک، نوع خودکار «لینک» + پرشدن URL».
+- **Changes:**
+  - **`src/components/app/tag-chips-input.tsx` (NEW) — the shared component:** controlled chips input used by BOTH quick capture and the note detail sheet (one UX). Enter / `,` / `،` commits (typing a separator commits immediately; pasting "a,b" yields two chips); Backspace on an empty field removes the last chip; Escape commits+blurs; **the field commits its remaining draft on blur so a tag is never lost on Save** (preserves the old comma-string semantics); exact-match dedup (parity with case-sensitive server tag creation); existing tags offered via native `datalist` (no AI); chips are Badges with per-tag remove buttons `aria-label="حذف برچسب {name}"`; container mimics the shadcn Input look (focus ring) and is fully RTL-safe.
+  - **`src/components/app/quick-capture.tsx`:** `tagsInput: string` → `tags: string[]` rendered by the shared component (suggestions = existing tags via `useTags`, shared cache); submit passes `tagNames` directly. **Paste-link detection (S2 DoD):** `onPaste` on the title field — if the clipboard text is a bare URL (`^https?://\S+$`), the paste is intercepted (`preventDefault`, title stays clean), the form auto-converts to a link note (type=link + URL filled) and a status hint explains it. QE6 precedence preserved: while the title is empty, the save-blocking reason wins over the detection hint.
+  - **`src/components/app/note-detail-sheet.tsx`:** the hand-rolled chips + dashed add-button + `tagInput` state replaced by the same shared component; tag mutations simplified to ONE list-based patch (`patchNote({tagNames})`) — both backends create missing tags from tagNames (demo: Prisma `connectOrCreate`; cloud: `resolveTagRefs`), so the old two-step create-then-patch (and its stale-closure race on rapid adds) is gone; `dataSource`/`useMemo`/`Plus` imports cleaned.
+  - **i18n (fa+en):** `tags.addPlaceholder` (fa «برچسب را بنویسید و Enter بزنید…» / en "Add a tag and press Enter…"), `tags.remove` «حذف برچسب {name}»/"Remove tag {name}", `capture.linkDetected` (fa «لینک شناسایی شد — نشانی پر شد؛ فقط عنوان را وارد کنید.» / en "Link detected — the URL field was filled in. Just add a title.").
+- **DoD verification (agent-browser, live):**
+  1. **Paste link in title (fa):** synthetic ClipboardEvent with a URL → paste intercepted (`defaultPrevented=true`), type auto-switched متن→**لینک**, URL field auto-filled, after typing the title the hint showed «لینک شناسایی شد — نشانی پر شد؛ فقط عنوان را وارد کنید.» — `s2-capture-paste-link.png`.
+  2. **Tag chips in capture:** typed «آموزش»+Enter, «s2-test»+Enter → two chips with remove buttons; saved the note → toast «مورد ذخیره شد», count 21→22 — `s2-capture-tag-chips.png`.
+  3. **Same UX in the detail sheet:** opened the saved note → the SAME shared component shows the note's tags; added «برچسب-شیت» via Enter, removed «s2-test» via its X; close+reopen → changes persisted (`آموزش | برچسب-شیت`) — `s2-detail-shared-chips.png`.
+  4. **Comma semantics:** typing «کاما-یک,» / «کاما-دو،» committed chips on BOTH ASCII and Persian commas (then removed) — old comma workflow preserved inside the chips UX.
+  5. **EN/LTR:** language switched to EN — placeholder and hint strings render in English; paste-link re-verified (type→Link, URL filled) — `s2-capture-paste-link-en.png`.
+  6. **Mobile @390 (EN):** capture dialog fully usable, no horizontal overflow — `s2-capture-en-390.png`.
+  7. **Final sweep (fa/RTL @1280):** dashboard/library/categories/settings all render, no overflow; page errors 0; console errors 0.
+  - Verification-harness note: two false alarms during testing (React 19 batches the paste-driven state update, so an atomic same-tick DOM read still shows the old type; and JS-eval clicks are unreliable on this app) — both are test artifacts, not app bugs; the state was correct after re-render and native clicks work.
+- **Lint:** clean. **tsc:** clean (src/). **SNAPSHOT:** v24.
+- **Commit:** `feat(s2): shared tag-chips input + paste-link detection in quick capture (Phase 3 complete)` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 23 — S5 DONE: Undo delete (soft delete + 7 s toast restore + trash view + undo-rate KPI)
 - **Trigger:** Roadmap Phase 3 item S5 (owner order): «در toast.error→success دکمه «بازگردانی» (پنجره ۷ ثانیه‌ای + حذف نرم deletedAt)».
 - **Honest provenance note:** the S5 code and its cloud-mode evidence screenshots had ALREADY been committed inside the previous step's commit `806d717` (bundled with the G1 work; commit message only mentions G1 — recorded here so the ledger matches reality). SNAPSHOT v22 still listed S5 as pending. Step 23 = own live verification of the full DoD (demo mode, fresh browser run), evidence review (all 9 screenshots viewed and confirmed), documentation close-out. No new S5 code was needed.

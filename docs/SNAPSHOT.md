@@ -2,9 +2,9 @@
 
 > **MASTER RECOVERY DOCUMENT.** A fresh environment with no access to this sandbox and no chat history must be able to reconstruct exact project state from this repository alone. Update this file **completely** (not a summary append) at the end of every step, per the Persistence Protocol (§Protocol).
 >
-> **Snapshot version:** 23 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
+> **Snapshot version:** 24 · **Date:** 2026-11-05 · **Snapshot author:** Z.ai Code agent
 > **v8 note:** full rewrite — previous version (v7) predates the entire application build and was severely outdated. This version describes the real, current product.
-> **v23 status: ROADMAP PHASE 3 IN PROGRESS — G1 ✅ + S5 ✅ both DONE and DoD-verified (demo + live Firebase Emulator). Next in the phase: S2 (capture unification — shared tag chips + paste-link detection), the LAST Phase-3 code item.**
+> **v24 status: ROADMAP PHASE 3 COMPLETE — G1 ✅ + S5 ✅ + S2 ✅, all DoD-verified (demo + live Firebase Emulator, fa/en, 1280/390). Phases 4–5 await the owner's order.**
 > **v23 provenance note (honesty):** the S5 code + cloud evidence had already been committed inside `806d717` (bundled with G1; its message mentions only G1). Step 23 added the fresh demo-mode DoD verification, evidence review and documentation — recorded so the ledger matches reality.
 
 ---
@@ -18,9 +18,9 @@
 | Audit | Delivered 2026-11-04 (`docs/PRODUCT_AUDIT_REPORT.md`) |
 | Decisions | D1–D12, D13, D14–D16 APPROVED; five owner binding instructions; D17 pending (`docs/DECISIONS.md`) |
 | Feature upgrade plan | **`roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` v1.0** (2026-11-05) — Feature X = Capture → Library → Detail core. Produced per owner's 11-section analyst mandate (12 live screenshots in `roadmaps/evidence/01…12` + full code re-read). Phases 1–5 with checkboxes, DoD per item, priority scoring, Keep/Change/Remove. |
-| **Current gate** | **Roadmap Phase 3 — Experience Leap (owner order, in progress).** G1 ✅ (step 22) and S5 ✅ (step 23) done+verified. **S2 (capture unification) is the remaining item.** After each step: full SNAPSHOT update + reference-doc updates + commit + push + SHA-parity proof (standing owner mandate). |
-| Development status | **Full application implemented and running** (see §2). **Phases 1–2 COMPLETE. Phase 3: G1 + S5 done — S2 remaining.** |
-| Next allowed step | **S2 — Capture unification** (shared tag-chips input for quick-capture AND detail sheet; paste-a-link in the title field → auto type=link + URL filled; i18n fa+en; then Phase 3 is COMPLETE). Evidence: `roadmaps/evidence/g1-*.png` (5), `s5-demo-*.png` (5), `s5-cloud-*.png` (4), plus P1/P2 evidence sets. |
+| **Current gate** | **Roadmap Phase 3 — Experience Leap: COMPLETE (owner order).** G1 ✅ (step 22) · S5 ✅ (step 23) · S2 ✅ (step 24) — all DoD-verified. **Phases 4–5 (S6 bulk ops, tag typeahead, G2 AI assist, P3 real file upload) await the owner's order.** After each step: full SNAPSHOT update + reference-doc updates + commit + push + SHA-parity proof (standing owner mandate). |
+| Development status | **Full application implemented and running** (see §2). **Phases 1–3 COMPLETE.** |
+| Next allowed step | **Await owner's order for Phase 4** (S6 bulk ops, QE-tagging typeahead, G2 AI assist = separate decision, P3 real file upload; P1 Telegram bridge FROZEN). KPI فاز ۳: cross-device visibility (cloud push, verified qualitatively in G1) + undo-rate recorded & reported (S5). Evidence: `roadmaps/evidence/g1-*.png` (5), `s5-demo-*.png` (5), `s5-cloud-*.png` (4), `s2-*.png` (5), plus P1/P2 sets. |
 
 ## 2. Implemented Capabilities
 
@@ -43,6 +43,11 @@
   - **`src/components/app/app-shell.tsx`** — realtime bridge: start on sign-in, coalesced (50 ms) `queryClient.invalidateQueries()` on every snapshot, full teardown on unmount/UID change/sign-out. Single component-level listener → no unmount leak.
   - **`src/hooks/queries.ts`** — demo mode polls every 2 s (notes/stats/categories/tags, active tab only); cloud never polls.
   - **DoD verified live (2026-11-05):** second-device REST write appears without refresh; tab2-UI-write → tab1 without refresh; browser-offline write survives reload and syncs on reconnect; SDK-offline: cache browsing + local latency-compensation display + server stays stale until `goOnline()` then syncs. Evidence: `roadmaps/evidence/g1-*.png` (5 files). Rules 39/39 after `deletedAt` whitelist.
+- **S2 CAPTURE UNIFICATION (v24, demo DoD verified live):**
+  - **`src/components/app/tag-chips-input.tsx` (NEW, the shared component):** ONE tag-entry UX for quick capture AND the note detail sheet — chips (Badge + per-chip remove `aria-label`), inline field commits on Enter/`,`/`،` (immediate commit when a separator is typed; paste "a,b" → two chips), Backspace-on-empty removes the last chip, **commit-on-blur never loses a draft tag on Save**, exact-match dedup, existing tags as `datalist` suggestions; Input-look container (focus ring), RTL-safe.
+  - **Paste-link detection:** pasting a bare URL into quick-capture's title → intercepted (`preventDefault`, title stays clean) → form auto-converts to type=link + URL filled + status hint «لینک شناسایی شد…»; QE6 precedence preserved (empty-title save-blocker wins until a title exists).
+  - **Detail sheet:** tag mutation simplified to one list-based `patchNote({tagNames})` (both backends auto-create missing tags: demo `connectOrCreate`, cloud `resolveTagRefs`) — removed the two-step create-then-patch and its stale-closure race.
+  - Verified: paste-link fa+en; add/remove chips both paths; persistence across sheet close/reopen; ASCII+Persian comma commit; mobile @390 no overflow; final 4-view sweep clean (0 console/page errors).
 - **S5 UNDO DELETE (v23, demo DoD verified live):**
   - **Soft delete end-to-end:** `deleteNote` sets `deletedAt` (never hard-deletes immediately); restore clears it. Demo: `server/services/notes.ts` + `POST /api/notes/[id]/restore`; cloud: repository `updateDoc({deletedAt})`. 7-day auto-purge: demo `deleteMany` on every list; cloud batched client-side sweep in `realtimeStore` (once per session).
   - **Trash UX:** delete-confirm dialog honestly says «به سطل منتقل می‌شود و تا ۷ روز قابل بازیابی است»; success toast «به سطل منتقل شد» with the **«بازگردانی» action (7 s window, sonner)**; trashed note's detail sheet shows «بازگردانی از سطل»; library toolbar has the «سطل» chip (mutually exclusive with archived; active-filter chip removable; deep-link `trash=1` via the S3 hash); trash excluded from default lists/stats/categories/tags in BOTH modes.
@@ -108,14 +113,14 @@
 
 ## 9. Git State (verify live with the commands below — a commit cannot contain its own SHA)
 
-| Field | Value at snapshot v23 |
+| Field | Value at snapshot v24 |
 |---|---|
 | Branch | `main` (only branch) |
-| Working tree | clean at last check (post-S5 close-out commit — verify live) |
+| Working tree | clean at last check (post-S2 commit — verify live) |
 | Remote `origin` | `https://github.com/Sohrab1999/Savedmassagemanager1` (public) — anonymous `ls-remote` 2026-11-05: `main = e5898b25e2c16c2dd79ee3beb34ec72d8116f7ea`; **push blocked (no credential)** |
 | Remote `backup` | bare mirror `/home/z/my-project-backup.git` — pushed + parity proven every step |
-| Local HEAD at v23 | see `git rev-parse HEAD`; chain: …Phase 2 close-out `1dc294b` → G1+S5-code `806d717` → **S5 close-out commit (see live rev-parse)** — 25+ commits ahead of frozen origin |
-| Phase status | **Phase 1 ✅ COMPLETE · Phase 2 ✅ COMPLETE · Phase 3: G1 ✅ (step 22) + S5 ✅ (step 23) — S2 remaining** |
+| Local HEAD at v24 | see `git rev-parse HEAD`; chain: …G1+S5-code `806d717` → S5 close-out `8c968b1` → **S2 commit (see live rev-parse)** — 25+ commits ahead of frozen origin |
+| Phase status | **Phase 1 ✅ COMPLETE · Phase 2 ✅ COMPLETE · Phase 3 ✅ COMPLETE (G1 step 22, S5 step 23, S2 step 24) — Phases 4–5 await owner** |
 
 Authoritative live check:
 
@@ -132,7 +137,7 @@ git rev-parse HEAD && git status --short \
 2. Read in this order: this file → `roadmaps/FEATURE-LIBRARY-UPGRADE-ROADMAP.md` → `docs/DECISIONS.md` → `docs/PRODUCT_BRIEF.md` (+ `CHANGELOG.md`) → `docs/ROADMAP.md` → `docs/ENVIRONMENT.md` → `worklog.md`.
 3. `bun install` · `.env` (`DATABASE_URL=file:/home/z/my-project/db/custom.db` + `NEXT_PUBLIC_FIREBASE_*` emulator placeholders or real values) · `bun run db:push`.
 4. `bun run dev` → port 3000 (check `dev.log`). Demo mode works immediately; cloud mode needs the emulator (`bunx firebase-tools emulators:start --only auth,firestore --project demo-savedbox`) or real Firebase env.
-5. Resume from §1 "Next allowed step" / roadmap checkboxes (Phase 3: S2 is the remaining item).
+5. Resume from §1 "Next allowed step" / roadmap checkboxes (Phases 1–3 complete; Phase 4 awaits the owner's order).
 
 ## 11. Work Completed (chronological, details in `worklog.md`)
 
@@ -143,13 +148,11 @@ git rev-parse HEAD && git status --short \
 5. **Phase 2 Data Foundation COMPLETE (v16–v21):** S7 read consolidation (`6273298`) · S8 chunked writeBatch fan-outs (`4bf21a2`, emulator-verified) · S1 server-side pagination both modes, 500-cap deleted (`5f9d004`, demo@623 + cloud@601 verified) · S4 title/content editor (`6f392d2`) · S3 filters in URL hash (`49ccb44`) · close-out regression (`1dc294b`).
 6. **Step 22 — G1 DONE (Phase 3 opens):** persistentLocalCache + multi-tab manager (`firebase.ts`); `realtimeStore` with 3 uncapped onSnapshot listeners (`realtime.ts` NEW); ALL repository one-shot reads → live-store reads (S7 TTL snapshot + S1 cloud structured path deleted; fan-outs now read-free AND uncapped); realtime bridge in app-shell (coalesced invalidations, full teardown); demo 2 s polling; `deletedAt` data plumbing (DTO/NoteDoc/Prisma + rules whitelist, 39/39); **DoD verified live on emulator: second-device push, tab2→tab1 without refresh, offline cache browsing, offline write queue + sync after reconnect** (`roadmaps/evidence/g1-*.png`); rules-test re-run 39/39; lint clean; tsc clean (src/); dev.log clean. SNAPSHOT v22; committed & backup parity proven.
 7. **Step 23 — S5 DONE (undo delete):** soft-delete + restore + trash view + 7-day purge + undo-rate KPI (code shipped in `806d717` alongside G1 — see v23 provenance note); step-23 work = fresh demo-mode DoD verification (delete → toast+«بازگردانی» → trash view → «بازگردانی از سطل» → full restore 21→20→21; deep-link `trash=1`; KPI «۱ از ۱ (۱۰۰٪)»), evidence review (9 screenshots), docs. SNAPSHOT v23; committed & backup parity proven.
+8. **Step 24 — S2 DONE (capture unification — Phase 3 closes):** shared `tag-chips-input.tsx` for quick-capture AND detail sheet (Enter/`,`/`،` commit, Backspace-remove, commit-on-blur, datalist suggestions); paste-a-URL-in-title → auto type=link + URL filled + hint (QE6 precedence kept); sheet tag mutation = one `{tagNames}` patch (stale-closure race removed); i18n fa+en (`tags.addPlaceholder`, `tags.remove`, `capture.linkDetected`). DoD verified live: paste-link fa+en, chips add/remove in both paths, persistence, comma semantics, @390 mobile, 4-view regression clean. SNAPSHOT v24; committed & backup parity proven.
 
 ## 12. Remaining Work
 
-- **Phase 3 (current, on owner order) — one item left:**
-  - **S2 — Capture unification (NEXT, last Phase-3 item):** shared tag-chips input component used by BOTH quick-capture and the detail sheet (single UX for tag entry); paste-a-link into the title field → auto-select type=link + fill the URL field; i18n fa+en. DoD: paste link in title → form auto-ready for a link note; tag entry identical in both paths.
-  - **KPI:** cross-device new-item visibility < 1 s (cloud push — verified qualitatively in G1); undo rate recorded & reported (✅ S5).
-- **Phases 4–5 (await owner):** S6 bulk ops, tag typeahead, G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
+- **Phases 4–5 (await owner order):** S6 bulk ops (multi-select → category/archive/delete), QE-tagging typeahead (from existing tags — note: S2 already ships datalist suggestions), G2 AI assist (separate decision), P3 real file upload; P1 Telegram bridge FROZEN until explicit owner order.
 - **Cloud-Go-Live backlog:** password-reset link (QE7, real Email provider); composite-index completion in production console (`firestore.indexes.json` has 11 declared; G1 made most read-time composites unnecessary — prune at go-live review); optional server-side trash purge (Cloud Scheduler) to complement the client-side 7-day sweep.
 - Pending owner items: **new PAT for `origin` push (single biggest durability gap — ALL work queued on `main`)**; D17 ruling; A1–A8 review (Phase 0 W7).
 
