@@ -6,6 +6,7 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  EmptyTrashResponse,
   ImportReport,
   NoteDTO,
   NoteFilters,
@@ -59,6 +60,11 @@ export const apiRoutes = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  // N5 — empty the trash (demo backend: one SQL statement). Irreversible —
+  // the UI must run the mandatory two-step confirmation first.
+  emptyTrash: () =>
+    api<EmptyTrashResponse>("/api/trash", { method: "DELETE" }),
 
   // P3 — multipart upload. NOTE: dedicated fetch (the shared `api` helper
   // always sets Content-Type: application/json, which would corrupt FormData).

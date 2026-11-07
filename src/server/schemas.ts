@@ -48,13 +48,16 @@ export const updateNoteSchema = createNoteSchema.partial().extend({
 });
 
 // S6 — bulk operations. Max 500 ids = the Firestore writeBatch ceiling, so one
-// request maps to at most one committed batch on both backends.
+// request maps to at most one committed batch on both backends. N5 adds
+// `purge` (permanent delete of already-trashed notes only — enforced by the
+// services' state guards).
 export const bulkNoteActionSchema = z.enum([
   "categorize",
   "archive",
   "unarchive",
   "delete",
   "restore",
+  "purge",
 ]);
 
 export const bulkNoteSchema = z

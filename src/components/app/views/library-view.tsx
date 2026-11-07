@@ -33,10 +33,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { EmptyState, ErrorState, GridSkeleton, ListSkeleton } from "@/components/app/states";
 import { NoteCard } from "@/components/app/note-card";
 import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
-import { useBulkNotes, useNotes, useCategories, useTags } from "@/hooks/queries";
+import {
+  useBulkNotes,
+  useEmptyTrash,
+  useNotes,
+  useCategories,
+  useTags,
+} from "@/hooks/queries";
 import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { useI18n } from "@/lib/i18n";
 import { formatNumber } from "@/lib/format";
@@ -44,6 +60,7 @@ import { NOTE_TYPES } from "@/lib/domain/types";
 import { useAppStore } from "@/stores/app-store";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import type { NoteDTO } from "@/lib/domain/types";
 
 export function LibraryView() {
   const { t, locale } = useI18n();
@@ -60,11 +77,17 @@ export function LibraryView() {
   const categoriesQuery = useCategories();
   const tagsQuery = useTags();
   const bulkNotes = useBulkNotes();
+  // N5 — permanent trash management.
+  const emptyTrash = useEmptyTrash();
 
   const [searchInput, setSearchInput] = useState(filters.q);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // The categorize Select resets to its placeholder after every action.
   const [bulkCategoryId, setBulkCategoryId] = useState("");
+  // N5 — pending permanent-delete targets: a single note (causal confirm) or
+  // the whole trash (MANDATORY two-step confirm: 1 = scope, 2 = final).
+  const [purgeTarget, setPurgeTarget] = useState<NoteDTO | null>(null);
+  const [emptyStep, setEmptyStep] = useState<0 | 1 | 2>(0);
 
   // Leaving this view (unmount) always ends bulk selection.
   useEffect(() => {
@@ -194,6 +217,45 @@ export function LibraryView() {
   const tags = tagsQuery.data?.items ?? [];
   const remaining = Math.max(total - items.length, 0);
 
+  /** N5 — permanent delete of ONE trashed note. Never feeds the S5 undo
+   * metric (irreversible) and carries its own causal confirm dialog. */
+  const confirmPurge = () => {
+    const target = purgeTarget;
+    setPurgeTarget(null);
+    if (!target) return;
+    bulkNotes.mutate(
+      { ids: [target.id], action: "purge" },
+      {
+        onSuccess: (result) =>
+          toast.success(
+            t("library.trash.purgedToast", {
+              n: formatNumber(result.updated, locale),
+            }),
+          ),
+        onError: () => toast.error(t("toast.error")),
+      },
+    );
+  };
+
+  /** N5 — empty the trash after the two-step confirmation completes. */
+  const confirmEmptyTrash = () => {
+    emptyTrash.mutate(undefined, {
+      onSuccess: (result) =>
+        toast.success(
+          t("library.trash.emptyDoneToast", {
+            n: formatNumber(result.deleted, locale),
+          }),
+        ),
+      onError: () => toast.error(t("toast.error")),
+    });
+  };
+
+  /** N5 — NoteCard reports a purge REQUEST by id; resolve it to the note so
+   * the causal dialog can name the exact item before anything is deleted. */
+  const handlePurgeRequest = (id: string) => {
+    setPurgeTarget(items.find((note) => note.id === id) ?? null);
+  };
+
   const isDefaultFilters =
     !hasActiveFilters && filters.sort === "newest";
 
@@ -231,6 +293,17 @@ export function LibraryView() {
       );
     }
     if (items.length === 0) {
+      if (filters.trash) {
+        // N5 — an explicit, non-silent empty-trash state (mirrors the N1
+        // inbox zero-state rule).
+        return (
+          <EmptyState
+            icon={Trash2}
+            title={t("library.trash.empty.title")}
+            description={t("library.trash.empty.desc")}
+          />
+        );
+      }
       return isDefaultFilters ? (
         <EmptyState
           title={t("library.empty.title")}
@@ -265,6 +338,8 @@ export function LibraryView() {
             selectionMode={bulkSelectMode}
             selected={selectedIds.has(note.id)}
             onToggleSelect={toggleSelect}
+            trashMode={filters.trash}
+            onPurge={handlePurgeRequest}
           />
         ))}
       </div>
@@ -279,6 +354,8 @@ export function LibraryView() {
             selectionMode={bulkSelectMode}
             selected={selectedIds.has(note.id)}
             onToggleSelect={toggleSelect}
+            trashMode={filters.trash}
+            onPurge={handlePurgeRequest}
           />
         ))}
       </div>
@@ -289,9 +366,31 @@ export function LibraryView() {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-lg font-bold sm:text-xl">{t("library.title")}</h1>
-        <span className="text-xs text-muted-foreground">
-          {t("library.resultsCount", { n: formatNumber(total, locale) })}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {t("library.resultsCount", { n: formatNumber(total, locale) })}
+          </span>
+          {filters.trash && total > 0 ? (
+            /* N5 — one batched write empties the whole trash; the button is
+               only the entry to the MANDATORY two-step confirmation below. */
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 border-destructive/30 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={emptyTrash.isPending}
+              onClick={() => setEmptyStep(1)}
+            >
+              {emptyTrash.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Trash2 className="size-3.5" aria-hidden="true" />
+              )}
+              {t("library.trash.emptyTrashCount", {
+                n: formatNumber(total, locale),
+              })}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {/* Search */}
@@ -711,6 +810,114 @@ export function LibraryView() {
           </div>
         </div>
       ) : null}
+
+      {/* N5 — single-item purge: one causal AlertDialog that names the exact
+          item; the destructive action is explicit and unambiguous. */}
+      <AlertDialog
+        open={purgeTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setPurgeTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("library.trash.purge.confirm.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("library.trash.purge.confirm.desc", {
+                name: purgeTarget?.title ?? "",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive"
+              onClick={(event) => {
+                // Keep the dialog open until the mutation settles.
+                event.preventDefault();
+                confirmPurge();
+              }}
+            >
+              {bulkNotes.isPending
+                ? t("common.loading")
+                : t("library.trash.purge.confirm.accept")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* N5 — empty trash: the MANDATORY two-step confirmation (step 1 =
+          scope + irreversibility; step 2 = final consent). Radix stays open
+          (preventDefault) so the user always lands on the explicit final
+          consent step — no accidental single-click empties. */}
+      <AlertDialog
+        open={emptyStep >= 1}
+        onOpenChange={(open) => {
+          if (!open) setEmptyStep(0);
+        }}
+      >
+        <AlertDialogContent>
+          {emptyStep === 1 ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t("library.trash.confirm.title")}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("library.trash.confirm.desc", {
+                    n: formatNumber(total, locale),
+                  })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setEmptyStep(0)}>
+                  {t("common.cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(event) => {
+                    // Radix closes on Action click by default — prevent it so
+                    // the SAME dialog advances to the final consent step.
+                    event.preventDefault();
+                    setEmptyStep(2);
+                  }}
+                >
+                  {t("library.trash.confirm.next")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {t("library.trash.confirm2.title")}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {t("library.trash.confirm2.desc", {
+                    n: formatNumber(total, locale),
+                  })}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setEmptyStep(0)}>
+                  {t("common.cancel")}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    setEmptyStep(0);
+                    confirmEmptyTrash();
+                  }}
+                >
+                  {t("library.trash.confirm2.accept")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* S1 — load more: appended 30-item pages; hidden when everything is shown. */}
       {notesQuery.hasNextPage && !notesQuery.isError && items.length > 0 ? (

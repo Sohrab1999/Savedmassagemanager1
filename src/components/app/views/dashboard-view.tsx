@@ -26,32 +26,59 @@ import { NOTE_TYPES } from "@/lib/domain/types";
 import { useAppStore } from "@/stores/app-store";
 import { ApiError } from "@/lib/api/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 
+/** N4 — interactive stats: cards with an equivalent library filter are real
+ * buttons (QE3 parity with the category tiles). Keyboard- and
+ * screen-reader-accessible via the native <button> + explicit aria-label. */
 function StatCard({
   icon: Icon,
   label,
   value,
+  onClick,
+  ariaLabel,
 }: {
   icon: LucideIcon;
   label: string;
   value: number;
+  onClick?: () => void;
+  ariaLabel?: string;
 }) {
   const { locale } = useI18n();
+  const body = (
+    <>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xl font-bold leading-6">
+          {formatNumber(value, locale)}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">{label}</p>
+      </div>
+    </>
+  );
+  if (!onClick) {
+    return (
+      <Card className="border bg-card shadow-xs">
+        <CardContent className="flex items-center gap-3 p-4">{body}</CardContent>
+      </Card>
+    );
+  }
   return (
-    <Card className="border bg-card shadow-xs">
-      <CardContent className="flex items-center gap-3 p-4">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="size-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-xl font-bold leading-6">
-            {formatNumber(value, locale)}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel ?? label}
+      title={label}
+      className={cn(
+        "w-full rounded-xl border bg-card text-start shadow-xs transition-all",
+        "hover:border-primary/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring",
+      )}
+    >
+      <span className="flex items-center gap-3 p-4">{body}</span>
+    </button>
   );
 }
 
@@ -68,6 +95,7 @@ export function DashboardView() {
   const setView = useAppStore((state) => state.setView);
   const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
   const setFilters = useAppStore((state) => state.setFilters);
+  const resetFilters = useAppStore((state) => state.resetFilters);
 
   const stats = statsQuery.data;
   const profile = profileQuery.data;
@@ -200,13 +228,52 @@ export function DashboardView() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats — N4: cards with an equivalent library filter deep-link to it
+          (total → #/library, favorites → fav=1, archived → arch=1). The
+          "this week" card stays display-only: a savedAfter=7d filter would
+          add a new filter dimension to both backends for a marginal path —
+          decision recorded in the N4 DoD. */}
       <section aria-label={t("dashboard.subtitle")}>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard icon={Bookmark} label={t("dashboard.stats.total")} value={stats.total} />
-          <StatCard icon={Star} label={t("dashboard.stats.favorites")} value={stats.favorites} />
-          <StatCard icon={Clock3} label={t("dashboard.stats.thisWeek")} value={stats.thisWeek} />
-          <StatCard icon={Archive} label={t("dashboard.stats.archived")} value={stats.archived} />
+          <StatCard
+            icon={Bookmark}
+            label={t("dashboard.stats.total")}
+            value={stats.total}
+            onClick={() => {
+              resetFilters();
+              setView("library");
+            }}
+            ariaLabel={t("a11y.stats.total")}
+          />
+          <StatCard
+            icon={Star}
+            label={t("dashboard.stats.favorites")}
+            value={stats.favorites}
+            onClick={() => {
+              // N4 — stat cards build a CLEAN filtered view: stale filters
+              // from a previous visit must not leak into the deep-link.
+              resetFilters();
+              setFilters({ favorite: true });
+              setView("library");
+            }}
+            ariaLabel={t("a11y.stats.favorites")}
+          />
+          <StatCard
+            icon={Clock3}
+            label={t("dashboard.stats.thisWeek")}
+            value={stats.thisWeek}
+          />
+          <StatCard
+            icon={Archive}
+            label={t("dashboard.stats.archived")}
+            value={stats.archived}
+            onClick={() => {
+              resetFilters();
+              setFilters({ archived: true });
+              setView("library");
+            }}
+            ariaLabel={t("a11y.stats.archived")}
+          />
         </div>
       </section>
 

@@ -134,7 +134,10 @@ export type BulkNoteAction =
   | "archive"
   | "unarchive"
   | "delete"
-  | "restore";
+  | "restore"
+  /** N5 — permanent delete; server-side guard: only notes already in the
+   * trash can be purged. */
+  | "purge";
 
 export interface BulkNotesInput {
   ids: string[];
@@ -150,8 +153,35 @@ export interface BulkNotesResponse {
 }
 
 // ---------------------------------------------------------------------------
+// N5 — trash management (purge + empty-trash)
+// ---------------------------------------------------------------------------
+
+/** S5/N5 — soft-deleted notes stay recoverable for this long, then they are
+ * purged for good (demo: lazy SQL sweep + explicit purge; cloud: client-side
+ * sweep in realtime.ts). Single source of truth for the countdown UI. */
+export const TRASH_RETENTION_MS = 7 * 86_400_000;
+
+/** Days left before a soft-deleted note is purged for good.
+ * 0 = purges today; null = not in the trash. */
+export function trashDaysLeft(
+  deletedAt: string | null,
+  now: number = Date.now(),
+): number | null {
+  if (!deletedAt) return null;
+  const remaining = TRASH_RETENTION_MS - (now - new Date(deletedAt).getTime());
+  if (remaining <= 0) return 0;
+  return Math.ceil(remaining / 86_400_000);
+}
+
+export interface EmptyTrashResponse {
+  ok: true;
+  deleted: number;
+}
+
+// ---------------------------------------------------------------------------
 // N2 — JSON import (the counterpart of /api/export)
 // ---------------------------------------------------------------------------
+
 
 /** Result of a merge import. Import NEVER deletes or updates existing
  * records — it only creates. Invalid items and duplicates are skipped and

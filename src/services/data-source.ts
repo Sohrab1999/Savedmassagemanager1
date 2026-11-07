@@ -16,6 +16,7 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  EmptyTrashResponse,
   ImportReport,
   NoteDTO,
   NoteFilters,
@@ -71,6 +72,12 @@ export const dataSource = {
     getCurrentUser()
       ? repository.bulkUpdateNotes(input)
       : apiRoutes.bulkNotes(input),
+
+  // N5 — empty the trash (permanent delete of every soft-deleted note).
+  // Demo: DELETE /api/trash (one SQL statement); cloud: chunked committed
+  // delete-batches in the repository (S8 pattern).
+  emptyTrash: (): Promise<EmptyTrashResponse> =>
+    getCurrentUser() ? repository.emptyTrash() : apiRoutes.emptyTrash(),
 
   // P3 — real file upload for «فایل/تصویر» notes (manual capture path).
   uploadFile: (file: File): Promise<UploadedFileInfo> =>

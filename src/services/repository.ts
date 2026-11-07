@@ -39,6 +39,7 @@ import {
   importPayloadSchema,
   importTagSchema,
 } from "@/lib/domain/import-schema";
+import { normalizePersian } from "@/lib/persian";
 import {
   AuthRequiredError,
   FS_PATHS,
@@ -49,6 +50,7 @@ import {
   type CategoryDoc,
   type CategoryRefDoc,
   type CreateNoteInput,
+  type EmptyTrashResponse,
   type ImportReport,
   type NoteDTO,
   type NoteDoc,
@@ -202,10 +204,14 @@ function categoryRefFrom(id: string, data: CategoryDoc): CategoryRefDoc {
 // ---------------------------------------------------------------------------
 
 function matchesText(note: NoteDTO, q: string): boolean {
-  const haystack = [note.title, note.content, note.description, note.url, note.fileName, note.sourceChat]
-    .filter((value): value is string => Boolean(value))
-    .join("\n")
-    .toLowerCase();
+  // N3 — both sides fold through `normalizePersian`, so Arabic ي/ك, diacritics
+  // and ZWNJ variants in either the query or the data can never break the
+  // match. Compare-only: note documents are never rewritten.
+  const haystack = normalizePersian(
+    [note.title, note.content, note.description, note.url, note.fileName, note.sourceChat]
+      .filter((value): value is string => Boolean(value))
+      .join("\n"),
+  );
   return haystack.includes(q);
 }
 
@@ -219,7 +225,8 @@ function filterAndSort(notes: NoteDTO[], filters: NoteFilters): NoteDTO[] {
   );
 
   if (filters.q?.trim()) {
-    const q = filters.q.trim().toLowerCase();
+    // N3 — fold the query once; matchesText folds the note side.
+    const q = normalizePersian(filters.q);
     items = items.filter((note) => matchesText(note, q));
   }
   if (filters.type && filters.type !== "all" && VALID_TYPES.includes(filters.type)) {
@@ -478,6 +485,22 @@ export async function restoreNote(id: string): Promise<{ ok: true }> {
 }
 
 // ---------------------------------------------------------------------------
+// N5 — chunked committed delete-batches (≤500 ops per commit, S8 helper
+// family). Used by the `purge` bulk action and by empty-trash.
+// ---------------------------------------------------------------------------
+
+async function batchedDelete(refs: DocumentReference[]): Promise<void> {
+  if (refs.length === 0) return;
+  const db = getFirestoreDb();
+  for (let start = 0; start < refs.length; start += MAX_BATCH_OPS) {
+    const chunk = refs.slice(start, start + MAX_BATCH_OPS);
+    const batch = writeBatch(db);
+    for (const ref of chunk) batch.delete(ref);
+    await batch.commit();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // S6 — bulk operations
 // ---------------------------------------------------------------------------
 
@@ -550,7 +573,36 @@ export async function bulkUpdateNotes(
       );
       return { ok: true, updated: applicable.length };
     }
+    case "purge": {
+      // N5 — permanent delete. Guard: only notes actually in the trash.
+      // Tag links are denormalized INSIDE the note document, so deleting the
+      // doc removes every dependency in one op; tag/category records are
+      // independent and are never touched here. One committed batch per
+      // ≤500-op chunk.
+      const doomed = targets.filter((id) => byId.get(id)!.deletedAt !== null);
+      await batchedDelete(doomed.map((id) => root.noteDoc(id)));
+      return { ok: true, updated: doomed.length };
+    }
   }
+}
+
+// ---------------------------------------------------------------------------
+// N5 — empty trash (cloud path)
+// ---------------------------------------------------------------------------
+
+/** N5 — permanently deletes EVERY soft-deleted note of the signed-in user.
+ * Sources the doomed ids from the live array (no extra reads), then removes
+ * them in committed delete-batches (≤500 ops per chunk). Tag links live
+ * inside the note docs, so no other cleanup is needed; tag/category records
+ * are independent and are never touched. */
+export async function emptyTrash(): Promise<EmptyTrashResponse> {
+  const root = userRoot(requireUid());
+  const notes = await liveNotes();
+  const doomed = notes
+    .filter((note) => note.deletedAt !== null)
+    .map((note) => root.noteDoc(note.id));
+  await batchedDelete(doomed);
+  return { ok: true, deleted: doomed.length };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,11 @@
 // Notes service: query building, DTO mapping, tag connectOrCreate logic.
 
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { normalizePersian } from "@/lib/persian";
+import { UPLOAD_DIR, isValidFileKey } from "@/server/storage";
 import type {
   CreateNoteInput,
   NoteDTO,
@@ -97,19 +101,14 @@ export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse
   // only them. Archived/favorite/type filters compose inside the view.
   and.push(query.trash ? { deletedAt: { not: null } } : { deletedAt: null });
 
+  // N3 — Persian search normalization. SQLite `contains` compares raw bytes,
+  // so «كتاب» (Arabic kaf) would miss «کتاب». When a query is present we drop
+  // the textual condition here and filter IN MEMORY through
+  // `normalizePersian` (compare-only — stored data is untouched). Demo scale
+  // (single-user SQLite) makes the full fetch safe; the cloud backend does
+  // the same folding client-side over the live G1 array.
   const q = query.q?.trim();
-  if (q) {
-    and.push({
-      OR: [
-        { title: { contains: q } },
-        { content: { contains: q } },
-        { description: { contains: q } },
-        { url: { contains: q } },
-        { fileName: { contains: q } },
-        { sourceChat: { contains: q } },
-      ],
-    });
-  }
+  const normalizedQuery = q ? normalizePersian(q) : "";
   if (query.type && VALID_TYPES.includes(query.type as NoteType)) {
     and.push({ type: query.type });
   }
@@ -126,18 +125,51 @@ export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse
     }
   }
 
+  const take = Math.min(Math.max(query.pageSize ?? NOTES_PAGE_SIZE, 1), MAX_PAGE_SIZE);
+  // Opaque offset cursor: page N starts after N×take rows.
+  const decodedOffset = Number.parseInt(query.pageToken ?? "0", 10);
+  const offset = Number.isFinite(decodedOffset) && decodedOffset > 0 ? decodedOffset : 0;
+
+  // N3 — normalized in-memory search path (query present).
+  if (normalizedQuery) {
+    const candidates = await db.note.findMany({ where, include: noteInclude });
+    const matched = candidates.filter((note) => {
+      const fields = [
+        note.title,
+        note.content,
+        note.description,
+        note.url,
+        note.fileName,
+        note.sourceChat,
+      ];
+      return fields.some(
+        (field) => typeof field === "string" && normalizePersian(field).includes(normalizedQuery),
+      );
+    });
+    // Mirror the SQL orderBy so page semantics stay identical with/without q.
+    if (query.sort === VALID_SORTS[1]) {
+      matched.sort((a, b) => a.savedAt.getTime() - b.savedAt.getTime());
+    } else if (query.sort === VALID_SORTS[2]) {
+      matched.sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0));
+    } else {
+      matched.sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+    }
+    const total = matched.length;
+    const items = matched.slice(offset, offset + take);
+    const nextOffset = offset + items.length;
+    return {
+      items: items.map(toNoteDTO),
+      total,
+      nextCursor: nextOffset < total ? String(nextOffset) : null,
+    };
+  }
+
   const orderBy: Prisma.NoteOrderByWithRelationInput =
     query.sort === VALID_SORTS[1]
       ? { savedAt: "asc" }
       : query.sort === VALID_SORTS[2]
         ? { title: "asc" }
         : { savedAt: "desc" };
-
-  const take = Math.min(Math.max(query.pageSize ?? NOTES_PAGE_SIZE, 1), MAX_PAGE_SIZE);
-  // Opaque offset cursor: page N starts after N×take rows. Combined with the
-  // stable orderBy below this yields deterministic pages.
-  const decodedOffset = Number.parseInt(query.pageToken ?? "0", 10);
-  const offset = Number.isFinite(decodedOffset) && decodedOffset > 0 ? decodedOffset : 0;
 
   const [items, total] = await Promise.all([
     db.note.findMany({
@@ -261,7 +293,7 @@ export async function restoreNote(id: string): Promise<boolean> {
 
 export interface BulkNotesInput {
   ids: string[];
-  action: "categorize" | "archive" | "unarchive" | "delete" | "restore";
+  action: "categorize" | "archive" | "unarchive" | "delete" | "restore" | "purge";
   /** categorize only: null = uncategorize. */
   categoryId?: string | null;
 }
@@ -272,10 +304,29 @@ export interface BulkNotesResponse {
   updated: number;
 }
 
+/** N5 — dependency cleanup for permanent deletes: uploaded files (P3) live on
+ * disk under db/uploads and are referenced as /api/files/<key>. Only keys that
+ * pass `isValidFileKey` (server-issued UUIDs) are ever touched — user input
+ * can never select an arbitrary path. Best-effort: a missing file is ignored. */
+async function purgeAttachments(
+  mediaUrls: Array<string | null>,
+): Promise<void> {
+  for (const mediaUrl of mediaUrls) {
+    if (!mediaUrl?.startsWith("/api/files/")) continue;
+    const key = mediaUrl.slice("/api/files/".length);
+    if (!isValidFileKey(key)) continue;
+    try {
+      await fs.unlink(path.join(UPLOAD_DIR, key));
+    } catch {
+      /* already gone — nothing to clean */
+    }
+  }
+}
+
 /** Applies one action to many notes in ONE Prisma statement (one SQL batch).
  * State guards keep the semantics consistent with the single-note endpoints:
- * categorize/archive/unarchive/delete only touch live notes; restore only
- * touches notes that are actually in the trash. */
+ * categorize/archive/unarchive/delete only touch live notes; restore and the
+ * N5 `purge` only touch notes that are actually in the trash. */
 export async function bulkUpdateNotes(
   input: BulkNotesInput,
 ): Promise<BulkNotesResponse> {
@@ -325,6 +376,44 @@ export async function bulkUpdateNotes(
         data: { deletedAt: null },
       });
       break;
+    case "purge": {
+      // N5 — permanent delete. Guarded to trashed notes only; NoteTag rows
+      // cascade (schema onDelete: Cascade) and tags/categories themselves are
+      // independent records — nothing else is removed.
+      const doomed = await db.note.findMany({
+        where: trashedWhere,
+        select: { id: true, mediaUrl: true },
+      });
+      if (doomed.length === 0) {
+        result = { count: 0 };
+        break;
+      }
+      result = await db.note.deleteMany({
+        where: { id: { in: doomed.map((note) => note.id) } },
+      });
+      await purgeAttachments(doomed.map((note) => note.mediaUrl));
+      break;
+    }
   }
   return { ok: true, updated: result.count };
+}
+
+// ---------------------------------------------------------------------------
+// N5 — empty trash
+// ---------------------------------------------------------------------------
+
+/** N5 — permanently deletes EVERY soft-deleted note in one SQL statement;
+ * uploaded attachment files are unlinked best-effort afterwards. Tags and
+ * categories are never touched (they are independent records). */
+export async function emptyTrash(): Promise<{ ok: true; deleted: number }> {
+  const doomed = await db.note.findMany({
+    where: { deletedAt: { not: null } },
+    select: { id: true, mediaUrl: true },
+  });
+  if (doomed.length === 0) return { ok: true, deleted: 0 };
+  const result = await db.note.deleteMany({
+    where: { deletedAt: { not: null } },
+  });
+  await purgeAttachments(doomed.map((note) => note.mediaUrl));
+  return { ok: true, deleted: result.count };
 }

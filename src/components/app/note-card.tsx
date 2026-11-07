@@ -1,13 +1,31 @@
 "use client";
 
 // Type-aware note card used in grid and list layouts.
+// N3 — search highlighting: when a query is active, title and snippet are
+// rendered with <mark> segments matched through the SAME Persian equivalence
+// table as the backend normalization (ك/ک، ي/ی، اعراب، نیم‌فاصله).
+// N5 — trash mode: cards show the purge countdown and a per-item
+// permanent-delete affordance instead of the favorite star.
 
-import { Check, Play, Star } from "lucide-react";
+import { Check, Play, Star, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { formatNumber, formatRelativeTime, domainOf, formatDuration } from "@/lib/format";
+import {
+  formatNumber,
+  formatRelativeTime,
+  domainOf,
+  formatDuration,
+} from "@/lib/format";
+import {
+  firstMatchIndex,
+  highlightRegexFor,
+  splitHighlight,
+  type HighlightSegment,
+} from "@/lib/persian";
 import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
+import { trashDaysLeft } from "@/lib/domain/types";
 import { useUpdateNote } from "@/hooks/queries";
+import { useAppStore } from "@/stores/app-store";
 import { toast } from "sonner";
 import type { NoteDTO } from "@/lib/domain/types";
 
@@ -162,6 +180,80 @@ function snippetOf(note: NoteDTO): string | null {
   );
 }
 
+/** N3 — renders a string with <mark> around matched segments. Falls back to
+ * the plain string when nothing matched. */
+function renderHighlighted(
+  segments: HighlightSegment[] | null,
+  fallback: string,
+) {
+  if (!segments) return fallback;
+  return segments.map((segment, index) =>
+    segment.hit ? (
+      <mark
+        key={index}
+        className="rounded-[2px] bg-amber-200 px-0.5 text-foreground dark:bg-amber-400/30 dark:text-amber-100"
+      >
+        {segment.text}
+      </mark>
+    ) : (
+      <span key={index}>{segment.text}</span>
+    ),
+  );
+}
+
+/** N5 — «X روز تا پاک‌سازی» countdown for soft-deleted notes. */
+function TrashCountdown({
+  note,
+  className,
+}: {
+  note: NoteDTO;
+  className?: string;
+}) {
+  const { t, locale } = useI18n();
+  const daysLeft = trashDaysLeft(note.deletedAt);
+  if (daysLeft === null) return null;
+  return (
+    <span
+      className={cn(
+        "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium leading-4 text-destructive",
+        className,
+      )}
+    >
+      {daysLeft === 0
+        ? t("library.trash.purgeToday")
+        : t("library.trash.purgeIn", {
+            n: formatNumber(daysLeft, locale),
+          })}
+    </span>
+  );
+}
+
+/** N5 — per-item permanent delete. Stops propagation so it never opens the
+ * note; the destructive confirm dialog lives in the library view. */
+function PurgeButton({
+  note,
+  onPurge,
+}: {
+  note: NoteDTO;
+  onPurge?: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <button
+      type="button"
+      aria-label={t("a11y.purgeNote", { title: note.title })}
+      title={t("library.trash.purge")}
+      onClick={(event) => {
+        event.stopPropagation();
+        onPurge?.(note.id);
+      }}
+      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background/70 text-muted-foreground backdrop-blur transition-colors hover:bg-destructive/10 hover:text-destructive"
+    >
+      <Trash2 className="size-4" aria-hidden="true" />
+    </button>
+  );
+}
+
 /** Up to 2 tag chips + "+N" overflow; renders nothing when the note has no
  *  tags so cards without tags never gain a row (QE4 no-layout-shift rule). */
 function TagChips({ note, compact }: { note: NoteDTO; compact?: boolean }) {
@@ -188,6 +280,32 @@ function TagChips({ note, compact }: { note: NoteDTO; compact?: boolean }) {
   );
 }
 
+/** N3 — search-focused snippet: when the primary snippet does not contain
+ * the match but description/content does, show a window around the first
+ * match so the hit is actually visible on the card. */
+function searchSnippetOf(
+  note: NoteDTO,
+  highlight: RegExp | null,
+): { snippet: string | null; segments: HighlightSegment[] | null } {
+  const raw = snippetOf(note);
+  if (!highlight || !raw) return { snippet: raw, segments: null };
+  if (firstMatchIndex(raw, highlight) >= 0) {
+    return { snippet: raw, segments: splitHighlight(raw, highlight) };
+  }
+  for (const field of [note.description, note.content]) {
+    if (!field?.trim()) continue;
+    const index = firstMatchIndex(field, highlight);
+    if (index < 0) continue;
+    const start = Math.max(0, index - 60);
+    const end = Math.min(field.length, index + 160);
+    const window = `${start > 0 ? "…" : ""}${field
+      .slice(start, end)
+      .trim()}${end < field.length ? "…" : ""}`;
+    return { snippet: window, segments: splitHighlight(window, highlight) };
+  }
+  return { snippet: raw, segments: null };
+}
+
 export function NoteCard({
   note,
   layout,
@@ -195,6 +313,8 @@ export function NoteCard({
   selectionMode = false,
   selected = false,
   onToggleSelect,
+  trashMode = false,
+  onPurge,
 }: {
   note: NoteDTO;
   layout: "grid" | "list";
@@ -203,9 +323,19 @@ export function NoteCard({
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
+  /** N5 — trash view: countdown chip + per-item purge. */
+  trashMode?: boolean;
+  onPurge?: (id: string) => void;
 }) {
   const { t, locale } = useI18n();
-  const snippet = snippetOf(note);
+  const searchQuery = useAppStore((state) => state.filters.q);
+
+  // N3 — highlight + search-focused snippet (the React Compiler memoizes
+  // these automatically; no manual useMemo).
+  const highlight = highlightRegexFor(searchQuery);
+  const titleSegments = splitHighlight(note.title, highlight);
+  const { snippet, segments: snippetSegments } = searchSnippetOf(note, highlight);
+
   const categoryColor = note.category?.color;
   const toggleSelect = onToggleSelect ?? (() => undefined);
 
@@ -235,18 +365,30 @@ export function NoteCard({
           <Thumbnail note={note} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{note.title}</p>
+          <p className="truncate text-sm font-medium">
+            {renderHighlighted(titleSegments, note.title)}
+          </p>
           <div className="flex items-center gap-2">
             {snippet ? (
-              <p className="min-w-0 truncate text-xs text-muted-foreground">{snippet}</p>
+              <p className="min-w-0 truncate text-xs text-muted-foreground">
+                {renderHighlighted(snippetSegments, snippet)}
+              </p>
             ) : null}
-            <span className="ms-auto shrink-0 text-[10px] text-muted-foreground">
-              {formatRelativeTime(note.savedAt, locale)}
-            </span>
+            {trashMode ? (
+              <TrashCountdown note={note} className="ms-auto" />
+            ) : (
+              <span className="ms-auto shrink-0 text-[10px] text-muted-foreground">
+                {formatRelativeTime(note.savedAt, locale)}
+              </span>
+            )}
           </div>
           <TagChips note={note} compact />
         </div>
-        {selectionMode ? null : <FavoriteToggle note={note} />}
+        {selectionMode ? null : trashMode ? (
+          <PurgeButton note={note} onPurge={onPurge} />
+        ) : (
+          <FavoriteToggle note={note} />
+        )}
       </div>
     );
   }
@@ -277,16 +419,24 @@ export function NoteCard({
           </div>
         ) : (
           <div className="absolute top-2 end-2">
-            <FavoriteToggle note={note} />
+            {trashMode ? (
+              <PurgeButton note={note} onPurge={onPurge} />
+            ) : (
+              <FavoriteToggle note={note} />
+            )}
           </div>
         )}
       </div>
       <div className="flex min-h-[86px] flex-1 flex-col gap-1.5 p-3">
-        <p className="line-clamp-1 text-sm font-semibold">{note.title}</p>
+        <p className="line-clamp-1 text-sm font-semibold">
+          {renderHighlighted(titleSegments, note.title)}
+        </p>
         {snippet ? (
           <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-            {snippet}
+            {renderHighlighted(snippetSegments, snippet)}
           </p>
+        ) : trashMode ? (
+          <TrashCountdown note={note} />
         ) : (
           <span className="text-xs text-muted-foreground">
             {formatRelativeTime(note.savedAt, locale)}
@@ -306,9 +456,13 @@ export function NoteCard({
               </span>
             </span>
           ) : null}
-          <span className="ms-auto shrink-0">
-            {formatRelativeTime(note.savedAt, locale)}
-          </span>
+          {trashMode ? (
+            <TrashCountdown note={note} className="ms-auto" />
+          ) : (
+            <span className="ms-auto shrink-0">
+              {formatRelativeTime(note.savedAt, locale)}
+            </span>
+          )}
         </div>
       </div>
     </div>

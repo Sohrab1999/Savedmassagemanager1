@@ -33,6 +33,7 @@ import {
 import { getFirestoreDb } from "@/services/firebase";
 import {
   FS_PATHS,
+  TRASH_RETENTION_MS,
   type CategoryDoc,
   type NoteDTO,
   type NoteDoc,
@@ -40,8 +41,10 @@ import {
 } from "@/domain/types";
 import { NOTE_TYPES } from "@/lib/domain/types";
 
-/** S5 — soft-deleted notes are purged for real after this window. */
-export const TRASH_RETENTION_MS = 7 * 86_400_000;
+/** S5 — soft-deleted notes are purged for real after this window. Single
+ * source of truth moved to the shared domain types (N5 countdown UI uses it
+ * too); re-exported here for existing consumers. */
+export { TRASH_RETENTION_MS } from "@/domain/types";
 
 const MAX_BATCH_OPS = 500;
 

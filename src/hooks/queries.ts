@@ -22,6 +22,7 @@ import type {
   BulkNotesInput,
   BulkNotesResponse,
   CategoryDTO,
+  EmptyTrashResponse,
   ImportReport,
   NoteDTO,
   NoteFilters,
@@ -186,12 +187,25 @@ export function useRestoreNote(): Mutation<string, { ok: true }> {
 
 /** S6 — bulk operations. One mutation = ONE batched write per action on both
  * backends; the invalidate covers every derived cache (notes, note, stats,
- * categories, tags) since a bulk action can change all of their counters. */
+ * categories, tags) since a bulk action can change all of their counters.
+ * N5 — `action: "purge"` performs the permanent delete (trashed notes only). */
 export function useBulkNotes(): Mutation<BulkNotesInput, BulkNotesResponse> {
   const invalidate = useInvalidateNotes();
   return useMutation({
     mutationFn: dataSource.bulkUpdateNotes,
     onSuccess: () => invalidate(),
+  });
+}
+
+/** N5 — empty the trash: permanent delete of every soft-deleted note in one
+ * batched write per backend. Full invalidation — every counter derived from
+ * the purged notes changes at once. Deliberately NOT wired into the undo
+ * metric: purge is irreversible and carries its own two-step confirmation. */
+export function useEmptyTrash(): Mutation<void, EmptyTrashResponse> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => dataSource.emptyTrash(),
+    onSuccess: () => queryClient.invalidateQueries(),
   });
 }
 
