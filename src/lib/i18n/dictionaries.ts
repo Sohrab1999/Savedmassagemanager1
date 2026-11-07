@@ -49,6 +49,12 @@ export const en = {
   "dashboard.empty.desc": "Capture your first message, link or file and it will show up here.",
   "dashboard.empty.cta": "Capture first item",
 
+  // N1 — visible Inbox (uncategorized as a first-class surface)
+  "dashboard.inbox.title": "Inbox",
+  "dashboard.inbox.desc": "{n} uncategorized items are waiting to be organized — one click, then bulk-categorize.",
+  "dashboard.inbox.zeroTitle": "Inbox is clear",
+  "dashboard.inbox.zero": "Everything is categorized — nice and tidy!",
+
   "type.text": "Text",
   "type.link": "Link",
   "type.image": "Image",
@@ -68,6 +74,7 @@ export const en = {
   "library.filters.tags": "Tags",
   "library.filters.tagsSelected": "{n} selected",
   "library.filters.favorite": "Favorites",
+  "library.filters.uncategorized": "Uncategorized",
   "library.filters.archived": "Archived",
   "library.filters.trash": "Trash",
   "library.noResults.title": "No matching items",
@@ -96,6 +103,7 @@ export const en = {
   "library.bulk.restoredToast": "{n} items restored",
   "a11y.selectItem": "Select item: {title}",
   "a11y.bulkActions": "Bulk actions",
+  "a11y.inbox": "Go to the inbox — uncategorized items",
 
   "categories.title": "Categories",
   "categories.tab.categories": "Categories",
@@ -199,6 +207,21 @@ export const en = {
   "settings.data": "Data management",
   "settings.export": "Export data (JSON)",
   "settings.export.desc": "Download every item, category and tag as a portable JSON file.",
+
+  // N2 — JSON import (merge-only, two-step guardrail)
+  "settings.import": "Import data (JSON)",
+  "settings.import.desc": "Open a Savedbox export file. Nothing is deleted or overwritten — only added.",
+  "settings.import.choose": "Choose file",
+  "settings.import.preview": "{notes} notes · {categories} categories · {tags} tags detected",
+  "settings.import.mergeHint": "Merge without deletion — duplicates are skipped automatically.",
+  "settings.import.confirm": "Import & merge",
+  "settings.import.importing": "Importing…",
+  "settings.import.done": "{added} added, {skipped} duplicates skipped ({invalid} invalid) — {categories} categories, {tags} tags created.",
+  "settings.import.fileTooLarge": "The file exceeds the 15 MB limit",
+  "settings.import.invalidJson": "This is not a valid JSON file",
+  "settings.import.notSavedbox": "This file is not a Savedbox export",
+  "settings.import.invalidSchema": "The file structure does not match the Savedbox export format",
+  "settings.import.failed": "Import failed — please try again",
   "settings.reset": "Reset demo data",
   "settings.reset.desc": "Restore the original sample content. All local changes will be lost.",
   "settings.reset.confirmTitle": "Reset all data?",
@@ -318,6 +341,12 @@ export const fa: Record<I18nKey, string> = {
   "dashboard.empty.desc": "اولین پیام، لینک یا فایل را ثبت کنید تا اینجا نمایش داده شود.",
   "dashboard.empty.cta": "ثبت اولین مورد",
 
+  // N1 — صندوق ورودی مرئی (بدون‌دسته به‌عنوان سطح اول)
+  "dashboard.inbox.title": "صندوق ورودی",
+  "dashboard.inbox.desc": "{n} مورد بدون دسته منتظر سازمان‌دهی‌اند — یک کلیک، بعد دسته‌سازی گروهی.",
+  "dashboard.inbox.zeroTitle": "صندوق ورودی خالی است",
+  "dashboard.inbox.zero": "همهٔ موارد دسته‌بندی شده‌اند — تمیز!",
+
   "type.text": "متن",
   "type.link": "لینک",
   "type.image": "تصویر",
@@ -337,6 +366,7 @@ export const fa: Record<I18nKey, string> = {
   "library.filters.tags": "برچسب‌ها",
   "library.filters.tagsSelected": "{n} انتخاب‌شده",
   "library.filters.favorite": "علاقه‌مندی",
+  "library.filters.uncategorized": "بدون دسته",
   "library.filters.archived": "بایگانی",
   "library.filters.trash": "سطل",
   "library.noResults.title": "موردی یافت نشد",
@@ -365,6 +395,7 @@ export const fa: Record<I18nKey, string> = {
   "library.bulk.restoredToast": "{n} مورد بازگردانی شد",
   "a11y.selectItem": "انتخاب مورد: {title}",
   "a11y.bulkActions": "عملیات گروهی",
+  "a11y.inbox": "رفتن به صندوق ورودی — موارد بدون دسته",
 
   "categories.title": "دسته‌ها",
   "categories.tab.categories": "دسته‌ها",
@@ -468,6 +499,21 @@ export const fa: Record<I18nKey, string> = {
   "settings.data": "مدیریت داده‌ها",
   "settings.export": "دریافت خروجی (JSON)",
   "settings.export.desc": "همهٔ موارد، دسته‌ها و برچسب‌ها را به‌صورت یک فایل JSON قابل‌حمل بگیرید.",
+
+  // N2 — درون‌ریزی JSON (فقط‌افزودنی، گارد دو مرحله‌ای)
+  "settings.import": "درون‌ریزی داده (JSON)",
+  "settings.import.desc": "فایل خروجی Savedbox را باز کنید؛ چیزی حذف یا بازنویسی نمی‌شود — فقط اضافه می‌شود.",
+  "settings.import.choose": "انتخاب فایل",
+  "settings.import.preview": "{notes} یادداشت · {categories} دسته · {tags} برچسب شناسایی شد",
+  "settings.import.mergeHint": "ادغام بدون حذف — موارد تکراری به‌طور خودکار رد می‌شوند.",
+  "settings.import.confirm": "درون‌ریزی و ادغام",
+  "settings.import.importing": "در حال درون‌ریزی…",
+  "settings.import.done": "{added} مورد اضافه شد، {skipped} تکرار رد شد ({invalid} نامعتبر) — {categories} دسته و {tags} برچسب ساخته شد.",
+  "settings.import.fileTooLarge": "حجم فایل بیش از ۱۵ مگابایت است",
+  "settings.import.invalidJson": "این یک فایل JSON معتبر نیست",
+  "settings.import.notSavedbox": "این فایل، خروجی Savedbox نیست",
+  "settings.import.invalidSchema": "ساختار فایل با قالب خروجی Savedbox سازگار نیست",
+  "settings.import.failed": "درون‌ریزی ناموفق بود — دوباره تلاش کنید",
   "settings.reset": "بازنشانی دادهٔ نمونه",
   "settings.reset.desc": "محتوای نمونهٔ اولیه بازگردانده می‌شود؛ تغییرات فعلی از بین می‌رود.",
   "settings.reset.confirmTitle": "بازنشانی همهٔ داده‌ها؟",

@@ -6,6 +6,7 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  ImportReport,
   NoteDTO,
   NoteFilters,
   NoteListResponse,
@@ -125,6 +126,14 @@ export const apiRoutes = {
     method: "PATCH",
     body: JSON.stringify(input),
   }),
+
+  // N2 — JSON import (demo backend): merge-only; server validates the
+  // payload with the shared import schema and returns an exact report.
+  importData: (payload: unknown) =>
+    api<ImportReport>("/api/import", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   resetSeed: () =>
     api<{ ok: true; counts: { notes: number; categories: number; tags: number } }>(

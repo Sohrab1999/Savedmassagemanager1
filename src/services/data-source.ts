@@ -16,6 +16,7 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  ImportReport,
   NoteDTO,
   NoteFilters,
   NoteListResponse,
@@ -76,6 +77,14 @@ export const dataSource = {
     getCurrentUser()
       ? repository.uploadFile(file)
       : apiRoutes.uploadFile(file),
+
+  // N2 — JSON import: merge a Savedbox export file (adds only; nothing is
+  // deleted or overwritten). Demo = POST /api/import; cloud = batched
+  // repository writes (S8 pattern).
+  importData: (payload: unknown): Promise<ImportReport> =>
+    getCurrentUser()
+      ? repository.importData(payload)
+      : apiRoutes.importData(payload),
 
   listCategories: (): Promise<{ items: CategoryDTO[] }> =>
     getCurrentUser()

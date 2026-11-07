@@ -68,6 +68,10 @@ export interface StatsDTO {
   favorites: number;
   archived: number;
   thisWeek: number;
+  /** N1 — visible Inbox: live, non-archived notes with no category. Feeds the
+   * dashboard "uncategorized" card; identical to the library `cat=none` view
+   * so the count and the filtered list always agree. */
+  uncategorized: number;
   byType: Record<NoteType, number>;
   byCategory: Array<CategoryRef & { count: number }>;
   recent: NoteDTO[];
@@ -143,6 +147,22 @@ export interface BulkNotesResponse {
   ok: true;
   /** How many of the requested ids the action actually touched. */
   updated: number;
+}
+
+// ---------------------------------------------------------------------------
+// N2 — JSON import (the counterpart of /api/export)
+// ---------------------------------------------------------------------------
+
+/** Result of a merge import. Import NEVER deletes or updates existing
+ * records — it only creates. Invalid items and duplicates are skipped and
+ * counted so the UI can show an exact report. */
+export interface ImportReport {
+  ok: true;
+  notesAdded: number;
+  notesSkippedDuplicates: number;
+  notesSkippedInvalid: number;
+  categoriesAdded: number;
+  tagsAdded: number;
 }
 
 // ---------------------------------------------------------------------------

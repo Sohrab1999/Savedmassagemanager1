@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Filter,
+  Inbox,
   LayoutGrid,
   List,
   ListChecks,
@@ -347,12 +348,20 @@ export function LibraryView() {
 
         <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
 
-        {/* Favorite / archived / trash (S5) */}
+        {/* Favorite / uncategorized (N1) / archived / trash (S5) */}
         <FilterChip
           active={filters.favorite}
           onClick={() => setFilters({ favorite: !filters.favorite })}
           icon={<Star className="size-3.5" aria-hidden="true" />}
           label={t("library.filters.favorite")}
+        />
+        <FilterChip
+          active={filters.categoryId === "none"}
+          onClick={() =>
+            setFilters({ categoryId: filters.categoryId === "none" ? "all" : "none" })
+          }
+          icon={<Inbox className="size-3.5" aria-hidden="true" />}
+          label={t("library.filters.uncategorized")}
         />
         <FilterChip
           active={filters.archived}

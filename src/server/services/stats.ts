@@ -7,12 +7,14 @@ import { noteInclude, toNoteDTO } from "./notes";
 export async function getStats(): Promise<StatsDTO> {
   const weekAgo = new Date(Date.now() - 7 * 86_400_000);
 
-  const [total, favorites, archived, thisWeek, typeGroups, categories, recentNotes] =
+  const [total, favorites, archived, thisWeek, uncategorized, typeGroups, categories, recentNotes] =
     await Promise.all([
       db.note.count({ where: { isArchived: false, deletedAt: null } }),
       db.note.count({ where: { isArchived: false, isFavorite: true, deletedAt: null } }),
       db.note.count({ where: { isArchived: true, deletedAt: null } }),
       db.note.count({ where: { isArchived: false, savedAt: { gte: weekAgo }, deletedAt: null } }),
+      // N1 — visible Inbox: same view the library `cat=none` filter shows.
+      db.note.count({ where: { isArchived: false, deletedAt: null, categoryId: null } }),
       db.note.groupBy({
         by: ["type"],
         _count: { _all: true },
@@ -50,6 +52,7 @@ export async function getStats(): Promise<StatsDTO> {
     favorites,
     archived,
     thisWeek,
+    uncategorized,
     byType,
     byCategory: categories.map((category) => ({
       id: category.id,

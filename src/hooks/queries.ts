@@ -22,6 +22,7 @@ import type {
   BulkNotesInput,
   BulkNotesResponse,
   CategoryDTO,
+  ImportReport,
   NoteDTO,
   NoteFilters,
   ProfileDTO,
@@ -289,4 +290,15 @@ async function apiResetSeed() {
   }
   const { apiRoutes } = await import("@/lib/api");
   return apiRoutes.resetSeed();
+}
+
+/** N2 — JSON import (Settings → Data). Merge-only on both backends; the
+ * full invalidation covers every derived counter (stats, category/tag
+ * note-counts) since an import can change all of them. */
+export function useImportData(): Mutation<unknown, ImportReport> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: unknown) => dataSource.importData(payload),
+    onSuccess: () => queryClient.invalidateQueries(),
+  });
 }

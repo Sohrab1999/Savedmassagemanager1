@@ -33,6 +33,13 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { getFirebaseAuth, getFirebaseStorage, getFirestoreDb } from "@/services/firebase";
 import { realtimeStore, mapNote } from "@/services/realtime";
 import {
+  importCategorySchema,
+  importNoteSchema,
+  importNoteTagNames,
+  importPayloadSchema,
+  importTagSchema,
+} from "@/lib/domain/import-schema";
+import {
   AuthRequiredError,
   FS_PATHS,
   NotFoundError,
@@ -42,6 +49,7 @@ import {
   type CategoryDoc,
   type CategoryRefDoc,
   type CreateNoteInput,
+  type ImportReport,
   type NoteDTO,
   type NoteDoc,
   type NoteFilters,
@@ -546,6 +554,195 @@ export async function bulkUpdateNotes(
 }
 
 // ---------------------------------------------------------------------------
+// N2 — JSON import (cloud path, S8 batch pattern)
+// ---------------------------------------------------------------------------
+
+/** Creates docs with client-allocated IDs in ≤500-op committed batches
+ * (same pattern as batchedCreateTags, generalized for categories + notes).
+ * `data: object` (not Record<string, unknown>) so typed document shapes
+ * (CategoryDoc/NoteDoc interfaces) are accepted directly. */
+async function batchedSet(
+  entries: Array<{ ref: DocumentReference; data: object }>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const db = getFirestoreDb();
+  for (let start = 0; start < entries.length; start += MAX_BATCH_OPS) {
+    const chunk = entries.slice(start, start + MAX_BATCH_OPS);
+    const batch = writeBatch(db);
+    for (const entry of chunk) batch.set(entry.ref, entry.data);
+    await batch.commit();
+  }
+}
+
+function importDuplicateKey(note: { type: string; title: string; url: string | null }): string {
+  return `${note.type}\u0000${note.title.trim()}\u0000${note.url ?? ""}`;
+}
+
+/** Merges a Savedbox export payload (demo or cloud shape) into the signed-in
+ * user's Firestore subtree. Validation uses the SAME shared zod schema as the
+ * demo backend; duplicates (type|title|url) are skipped; nothing is ever
+ * deleted or overwritten. All writes go through committed writeBatches
+ * (≤500 ops per chunk) so Firestore quota stays predictable. The live
+ * onSnapshot listeners surface the new documents automatically. */
+export async function importData(payload: unknown): Promise<ImportReport> {
+  const parsed = importPayloadSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new Error(
+      parsed.error.issues[0]?.message === "not-a-savedbox-export"
+        ? "import.not-a-savedbox-export"
+        : "import.invalid-schema",
+    );
+  }
+  const data = parsed.data;
+
+  const root = userRoot(requireUid());
+  await liveNotes(); // live categories/tags/notes current for dedup + mapping
+
+  const report: ImportReport = {
+    ok: true,
+    notesAdded: 0,
+    notesSkippedDuplicates: 0,
+    notesSkippedInvalid: 0,
+    categoriesAdded: 0,
+    tagsAdded: 0,
+  };
+
+  // -- 1. Categories: slug → existing id; missing ones created in batches.
+  const slugToId = new Map<string, string>();
+  const slugToDoc = new Map<string, CategoryDoc>();
+  for (const entry of realtimeStore.categoryDocs) {
+    slugToId.set(entry.data.slug, entry.id);
+    slugToDoc.set(entry.data.slug, entry.data);
+  }
+  let maxOrder = [...realtimeStore.categoryDocs].reduce(
+    (max, entry) => Math.max(max, entry.data.order ?? 0),
+    0,
+  );
+
+  const localCategoryIdToSlug = new Map<string, string>();
+  const categoryCreates: Array<{ ref: DocumentReference; data: CategoryDoc }> = [];
+  for (const raw of data.categories ?? []) {
+    const parsedCategory = importCategorySchema.safeParse(raw);
+    if (!parsedCategory.success) continue;
+    const input = parsedCategory.data;
+    const slug = input.slug ?? slugify(input.name);
+    if (input.id) localCategoryIdToSlug.set(input.id, slug);
+    if (slugToId.has(slug)) continue;
+    const ref = doc(root.categories);
+    const payloadCategory: CategoryDoc = {
+      slug,
+      name: input.name,
+      nameFa: input.nameFa ?? null,
+      icon: input.icon || "folder",
+      color: input.color || "#0d9488",
+      order: input.order ?? maxOrder + 1,
+      createdAt: Date.now(),
+    };
+    maxOrder = payloadCategory.order;
+    slugToId.set(slug, ref.id);
+    slugToDoc.set(slug, payloadCategory);
+    categoryCreates.push({ ref, data: payloadCategory });
+    report.categoriesAdded += 1;
+  }
+  await batchedSet(categoryCreates);
+
+  // -- 2. Tags: union of payload tags + note tag names; missing created in
+  // batches (batchedCreateTags allocates IDs client-side).
+  const wantedTagNames = new Set<string>();
+  for (const raw of data.tags ?? []) {
+    const parsedTag = importTagSchema.safeParse(raw);
+    if (parsedTag.success) wantedTagNames.add(parsedTag.data.name);
+  }
+  for (const raw of data.notes) {
+    const parsedNote = importNoteSchema.safeParse(raw);
+    if (!parsedNote.success) continue;
+    for (const name of importNoteTagNames(parsedNote.data.tags)) {
+      wantedTagNames.add(name);
+    }
+  }
+  const existingTagIdByName = new Map<string, string>();
+  for (const entry of realtimeStore.tagDocs) {
+    existingTagIdByName.set(entry.data.name, entry.id);
+  }
+  const missingTagNames = [...wantedTagNames].filter(
+    (name) => !existingTagIdByName.has(name),
+  );
+  const createdTags = await batchedCreateTags(missingTagNames, root);
+  report.tagsAdded = createdTags.length;
+  const tagIdByName = new Map<string, string>(existingTagIdByName);
+  for (const tag of createdTags) tagIdByName.set(tag.name, tag.id);
+
+  // -- 3. Notes: validate → dedup (live library) → batch-create NoteDocs.
+  const duplicates = new Set(
+    realtimeStore.notes
+      .filter((note) => note.deletedAt === null)
+      .map((note) => importDuplicateKey(note)),
+  );
+
+  const noteCreates: Array<{ ref: DocumentReference; data: NoteDoc }> = [];
+  for (const raw of data.notes) {
+    const parsedNote = importNoteSchema.safeParse(raw);
+    if (!parsedNote.success) {
+      report.notesSkippedInvalid += 1;
+      continue;
+    }
+    const note = parsedNote.data;
+    const url = note.url || null;
+    const key = importDuplicateKey({ type: note.type, title: note.title, url });
+    if (duplicates.has(key)) {
+      report.notesSkippedDuplicates += 1;
+      continue;
+    }
+
+    const localSlug =
+      (note.categoryId ? localCategoryIdToSlug.get(note.categoryId) : undefined) ??
+      note.category?.slug;
+    const categoryDoc = localSlug ? slugToDoc.get(localSlug) : undefined;
+    const categoryRef = categoryDoc
+      ? categoryRefFrom(slugToId.get(categoryDoc.slug) ?? "", categoryDoc)
+      : null;
+
+    const savedAt = note.savedAt ? Date.parse(note.savedAt) : Date.now();
+    const tagRefs = importNoteTagNames(note.tags)
+      .map((name) => {
+        const id = tagIdByName.get(name);
+        return id ? { id, name } : null;
+      })
+      .filter((ref): ref is TagRefDoc => ref !== null);
+
+    noteCreates.push({
+      ref: doc(root.notes),
+      data: {
+        type: note.type,
+        title: note.title,
+        content: note.content ?? null,
+        description: note.description ?? null,
+        url,
+        mediaUrl: note.mediaUrl ?? null,
+        fileName: note.fileName ?? null,
+        fileSize: note.fileSize ?? null,
+        mediaDuration: note.mediaDuration ?? null,
+        sourceChat: note.sourceChat ?? null,
+        sourceType: note.sourceType ?? "manual",
+        categoryId: categoryRef ? categoryRef.id : null,
+        category: categoryRef,
+        tags: tagRefs,
+        isFavorite: note.isFavorite ?? false,
+        isArchived: note.isArchived ?? false,
+        deletedAt: null,
+        savedAt,
+        updatedAt: savedAt,
+      },
+    });
+    duplicates.add(key); // de-duplicate inside the same payload too
+  }
+  await batchedSet(noteCreates);
+  report.notesAdded = noteCreates.length;
+
+  return report;
+}
+
+// ---------------------------------------------------------------------------
 // P3 — cloud-mode file upload (Firebase Storage)
 // ---------------------------------------------------------------------------
 
@@ -792,6 +989,9 @@ export async function getStats(): Promise<StatsDTO> {
     favorites: active.filter((note) => note.isFavorite).length,
     archived: live.length - active.length,
     thisWeek: active.filter((note) => new Date(note.savedAt).getTime() >= weekAgo).length,
+    // N1 — visible Inbox: live, non-archived notes with no category (parity
+    // with the SQL service; identical to the library `cat=none` view).
+    uncategorized: active.filter((note) => !note.categoryId).length,
     byType,
     byCategory: orderedCategories.map((entry) => ({
       ...categoryRefFrom(entry.id, entry.data),

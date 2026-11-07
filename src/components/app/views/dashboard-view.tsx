@@ -1,6 +1,14 @@
 "use client";
 
-import { Archive, Bookmark, Clock3, Plus, Star } from "lucide-react";
+import {
+  Archive,
+  Bookmark,
+  CheckCircle2,
+  Clock3,
+  Inbox,
+  Plus,
+  Star,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -142,6 +150,55 @@ export function DashboardView() {
           </span>
         </span>
       </button>
+
+      {/* N1 — visible Inbox: the "organize later" debt as a first-class
+          surface. One click deep-links to the library filtered on
+          «بدون دسته» (#/library?cat=none via S3) where S6 bulk categorize
+          clears it. Zero state is explicit, not silent. */}
+      {stats.uncategorized > 0 ? (
+        <button
+          type="button"
+          onClick={() => {
+            setFilters({ categoryId: "none" });
+            setView("library");
+          }}
+          aria-label={t("a11y.inbox")}
+          className="flex w-full items-center gap-3 rounded-xl border border-primary/40 bg-primary/5 p-4 text-start transition-colors hover:bg-primary/10"
+        >
+          <span className="relative flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Inbox className="size-5" aria-hidden="true" />
+            <span
+              aria-hidden="true"
+              className="absolute -top-1.5 -end-1.5 flex min-w-5 items-center justify-center rounded-full bg-primary px-1 py-0.5 text-[10px] font-bold leading-none text-primary-foreground"
+            >
+              {formatNumber(stats.uncategorized, locale)}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">{t("dashboard.inbox.title")}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {t("dashboard.inbox.desc", {
+                n: formatNumber(stats.uncategorized, locale),
+              })}
+            </span>
+          </span>
+        </button>
+      ) : (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-3 rounded-xl border border-dashed p-4 text-muted-foreground"
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <CheckCircle2 className="size-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-foreground">
+              {t("dashboard.inbox.zeroTitle")}
+            </span>
+            <span className="block truncate text-xs">{t("dashboard.inbox.zero")}</span>
+          </span>
+        </div>
+      )}
 
       {/* Stats */}
       <section aria-label={t("dashboard.subtitle")}>
