@@ -8,6 +8,7 @@ import {
   Filter,
   LayoutGrid,
   List,
+  ListChecks,
   Loader2,
   Plus,
   Search,
@@ -15,6 +16,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +35,8 @@ import {
 import { EmptyState, ErrorState, GridSkeleton, ListSkeleton } from "@/components/app/states";
 import { NoteCard } from "@/components/app/note-card";
 import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
-import { useNotes, useCategories, useTags } from "@/hooks/queries";
+import { useBulkNotes, useNotes, useCategories, useTags } from "@/hooks/queries";
+import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { useI18n } from "@/lib/i18n";
 import { formatNumber } from "@/lib/format";
 import { NOTE_TYPES } from "@/lib/domain/types";
@@ -48,12 +51,104 @@ export function LibraryView() {
   const resetFilters = useAppStore((state) => state.resetFilters);
   const openNote = useAppStore((state) => state.openNote);
   const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
+  // S6 — bulk-selection mode (store-scoped so the mobile FAB can hide).
+  const bulkSelectMode = useAppStore((state) => state.bulkSelectMode);
+  const setBulkSelectMode = useAppStore((state) => state.setBulkSelectMode);
 
   const notesQuery = useNotes(filters);
   const categoriesQuery = useCategories();
   const tagsQuery = useTags();
+  const bulkNotes = useBulkNotes();
 
   const [searchInput, setSearchInput] = useState(filters.q);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // The categorize Select resets to its placeholder after every action.
+  const [bulkCategoryId, setBulkCategoryId] = useState("");
+
+  // Leaving this view (unmount) always ends bulk selection.
+  useEffect(() => {
+    return () => setBulkSelectMode(false);
+  }, [setBulkSelectMode]);
+
+  const exitSelection = useCallback(() => {
+    setBulkSelectMode(false);
+    setSelectedIds(new Set());
+    setBulkCategoryId("");
+  }, [setBulkSelectMode]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  /** S6 — ONE batched write per action on both backends (demo: one Prisma
+   * statement; cloud: one committed writeBatch). Bulk delete keeps the S5
+   * undo contract: a 7-second toast restores the whole batch. */
+  const runBulk = useCallback(
+    (
+      action: "categorize" | "archive" | "unarchive" | "delete" | "restore",
+      categoryId?: string | null,
+      ids?: string[],
+    ) => {
+      const targetIds = ids ?? [...selectedIds];
+      if (targetIds.length === 0) return;
+      bulkNotes.mutate(
+        { ids: targetIds, action, categoryId },
+        {
+          onSuccess: (result) => {
+            const countLabel = formatNumber(result.updated, locale);
+            if (action === "delete") {
+              recordDeletion(result.updated);
+              const undoIds = targetIds;
+              toast.success(
+                t("library.bulk.trashedToast", { n: countLabel }),
+                {
+                  duration: 7000,
+                  action: {
+                    label: t("common.restore"),
+                    onClick: () => {
+                      bulkNotes.mutate(
+                        { ids: undoIds, action: "restore" },
+                        {
+                          onSuccess: (restored) => {
+                            recordUndo(restored.updated);
+                            toast.success(
+                              t("library.bulk.restoredToast", {
+                                n: formatNumber(restored.updated, locale),
+                              }),
+                            );
+                          },
+                          onError: () => toast.error(t("toast.error")),
+                        },
+                      );
+                    },
+                  },
+                },
+              );
+            } else {
+              const key =
+                action === "categorize"
+                  ? "library.bulk.categorizedToast"
+                  : action === "archive"
+                    ? "library.bulk.archivedToast"
+                    : action === "unarchive"
+                      ? "library.bulk.unarchivedToast"
+                      : "library.bulk.restoredToast";
+              toast.success(t(key, { n: countLabel }));
+            }
+            setSelectedIds(new Set());
+            setBulkCategoryId("");
+          },
+          onError: () => toast.error(t("toast.error")),
+        },
+      );
+    },
+    [bulkNotes, locale, selectedIds, t],
+  );
 
   // Debounce search into the store so the query doesn't run per keystroke.
   useEffect(() => {
@@ -161,13 +256,29 @@ export function LibraryView() {
     return filters.layout === "grid" ? (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {items.map((note) => (
-          <NoteCard key={note.id} note={note} layout="grid" onOpen={openNote} />
+          <NoteCard
+            key={note.id}
+            note={note}
+            layout="grid"
+            onOpen={openNote}
+            selectionMode={bulkSelectMode}
+            selected={selectedIds.has(note.id)}
+            onToggleSelect={toggleSelect}
+          />
         ))}
       </div>
     ) : (
       <div className="space-y-2">
         {items.map((note) => (
-          <NoteCard key={note.id} note={note} layout="list" onOpen={openNote} />
+          <NoteCard
+            key={note.id}
+            note={note}
+            layout="list"
+            onOpen={openNote}
+            selectionMode={bulkSelectMode}
+            selected={selectedIds.has(note.id)}
+            onToggleSelect={toggleSelect}
+          />
         ))}
       </div>
     );
@@ -392,6 +503,23 @@ export function LibraryView() {
             <List className="size-3.5" aria-hidden="true" />
           </button>
         </div>
+
+        {/* S6 — bulk-selection toggle (stable end of the bar, like sort/layout) */}
+        <button
+          type="button"
+          aria-label={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+          aria-pressed={bulkSelectMode}
+          title={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+          onClick={() => (bulkSelectMode ? exitSelection() : setBulkSelectMode(true))}
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors",
+            bulkSelectMode
+              ? "border-primary bg-primary text-primary-foreground"
+              : "bg-background text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <ListChecks className="size-4" aria-hidden="true" />
+        </button>
       </div>
 
       {/* Active filters bar (QE5): one removable chip per active filter,
@@ -464,6 +592,116 @@ export function LibraryView() {
       ) : null}
 
       {renderBody()}
+
+      {/* S6 — bulk-selection action bar. Fixed above the mobile bottom nav
+      (74px ≈ nav height) and centered near the bottom edge on desktop. */}
+      {bulkSelectMode ? (
+        <div
+          role="toolbar"
+          aria-label={t("a11y.bulkActions")}
+          className="fixed inset-x-3 bottom-[74px] z-30 lg:inset-x-auto lg:bottom-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2"
+        >
+          <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-popover p-2 shadow-lg">
+            <span className="min-w-16 px-1 text-xs font-semibold tabular-nums">
+              {t("library.bulk.selected", {
+                n: formatNumber(selectedIds.size, locale),
+              })}
+            </span>
+
+            {filters.trash ? (
+              /* Trash view: bulk restore only (soft-delete contract) */
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                disabled={selectedIds.size === 0 || bulkNotes.isPending}
+                onClick={() => runBulk("restore")}
+              >
+                {bulkNotes.isPending ? (
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Archive className="size-3.5" aria-hidden="true" />
+                )}
+                {t("library.bulk.restore")}
+              </Button>
+            ) : (
+              <>
+                <Select
+                  value={bulkCategoryId}
+                  onValueChange={(value) =>
+                    runBulk(
+                      "categorize",
+                      value === "none" ? null : value,
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className="h-8 min-w-28 text-xs"
+                    aria-label={t("library.bulk.categorize")}
+                    disabled={selectedIds.size === 0 || bulkNotes.isPending}
+                  >
+                    <SelectValue placeholder={t("library.bulk.selectCategory")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("common.none")}</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {localizedCategoryName(category, locale)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {filters.archived ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    disabled={selectedIds.size === 0 || bulkNotes.isPending}
+                    onClick={() => runBulk("unarchive")}
+                  >
+                    <Archive className="size-3.5" aria-hidden="true" />
+                    {t("library.bulk.unarchive")}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    disabled={selectedIds.size === 0 || bulkNotes.isPending}
+                    onClick={() => runBulk("archive")}
+                  >
+                    <Archive className="size-3.5" aria-hidden="true" />
+                    {t("library.bulk.archive")}
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
+                  disabled={selectedIds.size === 0 || bulkNotes.isPending}
+                  onClick={() => runBulk("delete")}
+                >
+                  <Trash2 className="size-3.5" aria-hidden="true" />
+                  {t("library.bulk.delete")}
+                </Button>
+              </>
+            )}
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={exitSelection}
+              aria-label={t("library.bulk.clear")}
+            >
+              <X className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* S1 — load more: appended 30-item pages; hidden when everything is shown. */}
       {notesQuery.hasNextPage && !notesQuery.isError && items.length > 0 ? (

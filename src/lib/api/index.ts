@@ -1,7 +1,9 @@
 // Typed endpoint functions consumed by TanStack Query hooks.
 
-import { api } from "./client";
+import { ApiError, api } from "./client";
 import type {
+  BulkNotesInput,
+  BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
   NoteDTO,
@@ -12,6 +14,7 @@ import type {
   StatsDTO,
   TagDTO,
   UpdateNoteInput,
+  UploadedFileInfo,
 } from "@/lib/domain/types";
 
 function buildNotesQuery(filters: NoteFilters): string {
@@ -48,6 +51,43 @@ export const apiRoutes = {
     api<{ ok: true }>(`/api/notes/${id}`, { method: "DELETE" }),
   restoreNote: (id: string) =>
     api<{ ok: true }>(`/api/notes/${id}/restore`, { method: "POST" }),
+
+  // S6 — bulk operations (demo backend: one Prisma statement per action).
+  bulkNotes: (input: BulkNotesInput) =>
+    api<BulkNotesResponse>("/api/notes/bulk", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  // P3 — multipart upload. NOTE: dedicated fetch (the shared `api` helper
+  // always sets Content-Type: application/json, which would corrupt FormData).
+  uploadFile: async (file: File): Promise<UploadedFileInfo> => {
+    const body = new FormData();
+    body.append("file", file);
+    let response: Response;
+    try {
+      response = await fetch("/api/upload", { method: "POST", body });
+    } catch {
+      throw new ApiError(0, "network-error");
+    }
+    const data = (await response.json().catch(() => null)) as {
+      error?: string;
+      url?: string;
+      fileName?: string;
+      fileSize?: number;
+    } | null;
+    if (!response.ok || !data?.url) {
+      throw new ApiError(
+        response.status,
+        data?.error ?? `request-failed-${response.status}`,
+      );
+    }
+    return {
+      url: data.url,
+      fileName: data.fileName ?? file.name,
+      fileSize: data.fileSize ?? file.size,
+    };
+  },
 
   listCategories: () => api<{ items: CategoryDTO[] }>("/api/categories"),
   createCategory: (input: {

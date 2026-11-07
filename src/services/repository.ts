@@ -29,12 +29,15 @@ import {
   writeBatch,
   type DocumentReference,
 } from "firebase/firestore";
-import { getFirebaseAuth, getFirestoreDb } from "@/services/firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { getFirebaseAuth, getFirebaseStorage, getFirestoreDb } from "@/services/firebase";
 import { realtimeStore, mapNote } from "@/services/realtime";
 import {
   AuthRequiredError,
   FS_PATHS,
   NotFoundError,
+  type BulkNotesInput,
+  type BulkNotesResponse,
   type CategoryDTO,
   type CategoryDoc,
   type CategoryRefDoc,
@@ -52,6 +55,7 @@ import {
   type TagDoc,
   type TagRefDoc,
   type UpdateNoteInput,
+  type UploadedFileInfo,
 } from "@/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -463,6 +467,106 @@ export async function restoreNote(id: string): Promise<{ ok: true }> {
     updatedAt: Date.now(),
   });
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// S6 — bulk operations
+// ---------------------------------------------------------------------------
+
+/** Applies one action to many notes. Every action = ONE writeBatch commit per
+ * ≤500-op chunk (S8 helper), so "categorize 10 items" is a single committed
+ * batch — the S6 DoD. State guards mirror the demo backend: categorize/
+ * archive/unarchive/delete only touch live notes; restore only trashed ones.
+ * The denormalized `category` ref is kept in lockstep for bulk-categorize. */
+export async function bulkUpdateNotes(
+  input: BulkNotesInput,
+): Promise<BulkNotesResponse> {
+  const root = userRoot(requireUid());
+  const notes = await liveNotes();
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  const targets = input.ids.filter((id) => byId.has(id));
+  if (targets.length === 0) return { ok: true, updated: 0 };
+
+  const now = Date.now();
+  let applicable: string[];
+
+  switch (input.action) {
+    case "categorize": {
+      const category = input.categoryId
+        ? await loadCategoryRef(input.categoryId)
+        : null;
+      await batchedUpdate(
+        targets.map((id) => ({
+          ref: root.noteDoc(id),
+          data: {
+            categoryId: category ? category.id : null,
+            category,
+            updatedAt: now,
+          },
+        })),
+      );
+      return { ok: true, updated: targets.length };
+    }
+    case "archive":
+    case "unarchive": {
+      const isArchived = input.action === "archive";
+      applicable = targets.filter((id) => {
+        const note = byId.get(id)!;
+        return note.deletedAt === null && note.isArchived !== isArchived;
+      });
+      await batchedUpdate(
+        applicable.map((id) => ({
+          ref: root.noteDoc(id),
+          data: { isArchived, updatedAt: now },
+        })),
+      );
+      return { ok: true, updated: applicable.length };
+    }
+    case "delete": {
+      applicable = targets.filter((id) => byId.get(id)!.deletedAt === null);
+      await batchedUpdate(
+        applicable.map((id) => ({
+          ref: root.noteDoc(id),
+          data: { deletedAt: now, updatedAt: now },
+        })),
+      );
+      return { ok: true, updated: applicable.length };
+    }
+    case "restore": {
+      applicable = targets.filter((id) => byId.get(id)!.deletedAt !== null);
+      await batchedUpdate(
+        applicable.map((id) => ({
+          ref: root.noteDoc(id),
+          data: { deletedAt: null, updatedAt: now },
+        })),
+      );
+      return { ok: true, updated: applicable.length };
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// P3 — cloud-mode file upload (Firebase Storage)
+// ---------------------------------------------------------------------------
+
+/** Uploads a file for the signed-in user. Path: users/{uid}/files/<uuid>-<safe
+ * name>. The client name is sanitized to metadata only (never a path). NOTE:
+ * this path requires a Storage bucket + owner-side storage rules in the real
+ * Firebase project (go-live backlog); on the local emulator it works when the
+ * storage emulator is running, otherwise callers get an honest upload error. */
+export async function uploadFile(file: File): Promise<UploadedFileInfo> {
+  const storage = getFirebaseStorage();
+  if (!storage) {
+    throw new Error("storage-unavailable");
+  }
+  const uid = requireUid();
+  const safeName = file.name.replace(/[^\p{L}\p{N}._-]+/gu, "-").slice(-120);
+  const fileRef = ref(storage, `users/${uid}/files/${crypto.randomUUID()}-${safeName}`);
+  const snapshot = await uploadBytes(fileRef, file, {
+    contentType: file.type || undefined,
+  });
+  const url = await getDownloadURL(snapshot.ref);
+  return { url, fileName: file.name, fileSize: file.size };
 }
 
 // ---------------------------------------------------------------------------

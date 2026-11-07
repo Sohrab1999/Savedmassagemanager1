@@ -2,7 +2,7 @@
 
 // Type-aware note card used in grid and list layouts.
 
-import { Play, Star } from "lucide-react";
+import { Check, Play, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 import { formatNumber, formatRelativeTime, domainOf, formatDuration } from "@/lib/format";
@@ -41,6 +41,52 @@ function FavoriteToggle({ note }: { note: NoteDTO }) {
         )}
         aria-hidden="true"
       />
+    </button>
+  );
+}
+
+/** S6 — selection checkbox shown only in bulk-select mode. Stops propagation
+ * so toggling never opens the note; keyboard activation is also isolated from
+ * the card's own Enter/Space handler. */
+function SelectToggle({
+  note,
+  selected,
+  onToggleSelect,
+}: {
+  note: NoteDTO;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={selected}
+      aria-label={t("a11y.selectItem", { title: note.title })}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggleSelect(note.id);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.stopPropagation();
+          onToggleSelect(note.id);
+        }
+      }}
+      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background/70 backdrop-blur transition-colors hover:bg-background"
+    >
+      <span
+        className={cn(
+          "flex size-5 items-center justify-center rounded-md border transition-colors",
+          selected
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-input bg-background",
+        )}
+      >
+        {selected ? <Check className="size-3.5" aria-hidden="true" /> : null}
+      </span>
     </button>
   );
 }
@@ -146,14 +192,22 @@ export function NoteCard({
   note,
   layout,
   onOpen,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect,
 }: {
   note: NoteDTO;
   layout: "grid" | "list";
   onOpen: (id: string) => void;
+  /** S6 — bulk-selection affordances. */
+  selectionMode?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const { t, locale } = useI18n();
   const snippet = snippetOf(note);
   const categoryColor = note.category?.color;
+  const toggleSelect = onToggleSelect ?? (() => undefined);
 
   if (layout === "list") {
     return (
@@ -170,6 +224,13 @@ export function NoteCard({
         }}
         className="flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-2.5 text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
       >
+        {selectionMode ? (
+          <SelectToggle
+            note={note}
+            selected={selected}
+            onToggleSelect={toggleSelect}
+          />
+        ) : null}
         <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
           <Thumbnail note={note} />
         </div>
@@ -185,7 +246,7 @@ export function NoteCard({
           </div>
           <TagChips note={note} compact />
         </div>
-        <FavoriteToggle note={note} />
+        {selectionMode ? null : <FavoriteToggle note={note} />}
       </div>
     );
   }
@@ -206,9 +267,19 @@ export function NoteCard({
     >
       <div className="relative h-32 w-full overflow-hidden">
         <Thumbnail note={note} />
-        <div className="absolute top-2 end-2">
-          <FavoriteToggle note={note} />
-        </div>
+        {selectionMode ? (
+          <div className="absolute top-2 start-2">
+            <SelectToggle
+              note={note}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+            />
+          </div>
+        ) : (
+          <div className="absolute top-2 end-2">
+            <FavoriteToggle note={note} />
+          </div>
+        )}
       </div>
       <div className="flex min-h-[86px] flex-1 flex-col gap-1.5 p-3">
         <p className="line-clamp-1 text-sm font-semibold">{note.title}</p>

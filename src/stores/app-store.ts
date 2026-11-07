@@ -122,10 +122,14 @@ interface AppState {
   detailNoteId: string | null;
   captureOpen: boolean;
   filters: LibraryFiltersState;
+  /** S6 — bulk-selection mode lives here so the mobile capture FAB can hide
+   * itself while selecting (the two flows must not overlap). */
+  bulkSelectMode: boolean;
   setView: (view: AppView) => void;
   openNote: (id: string) => void;
   closeNote: () => void;
   setCaptureOpen: (open: boolean) => void;
+  setBulkSelectMode: (active: boolean) => void;
   setFilters: (patch: Partial<LibraryFiltersState>) => void;
   resetFilters: () => void;
 }
@@ -137,8 +141,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   detailNoteId: null,
   captureOpen: false,
   filters: { ...defaultLibraryFilters },
+  bulkSelectMode: false,
 
   setView: (view) => {
+    // Leaving the library always ends bulk selection.
+    if (view !== "library") set({ bulkSelectMode: false });
     if (typeof window !== "undefined") {
       // Deep-linkable library hash carries the active filters (S3).
       const hash = view === "library" ? libraryHash(get().filters) : view === "dashboard" ? "#/" : `#/${view}`;
@@ -152,6 +159,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   openNote: (id) => set({ detailNoteId: id }),
   closeNote: () => set({ detailNoteId: null }),
   setCaptureOpen: (open) => set({ captureOpen: open }),
+  setBulkSelectMode: (active) => set({ bulkSelectMode: active }),
 
   setFilters: (patch) => {
     set((state) => {

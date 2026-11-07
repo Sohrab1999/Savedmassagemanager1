@@ -30,6 +30,7 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from "firebase/firestore";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 
 export const FIREBASE_CONFIG = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -42,6 +43,7 @@ export const FIREBASE_CONFIG = {
 
 const EMULATOR_AUTH_PORT = 9099;
 const EMULATOR_FIRESTORE_PORT = 8080;
+const EMULATOR_STORAGE_PORT = 9199;
 
 export class FirebaseConfigError extends Error {
   constructor() {
@@ -68,6 +70,7 @@ export function getEmulatorHost(): string {
 
 let authInstance: Auth | null = null;
 let dbInstance: Firestore | null = null;
+let storageInstance: FirebaseStorage | null = null;
 let initFailure: Error | null = null;
 
 function ensureApp(): FirebaseApp {
@@ -125,6 +128,18 @@ function initialize(): { auth: Auth; db: Firestore } {
     });
     connectFirestoreEmulator(db, host, EMULATOR_FIRESTORE_PORT);
 
+    // P3 — Storage emulator for cloud-mode uploads when it is running. The
+    // emulator suite here does not ship storage in firebase.json, so failure
+    // to connect is non-fatal: uploadFile reports an honest error instead.
+    const app = getApp();
+    try {
+      const storage = getStorage(app);
+      connectStorageEmulator(storage, host, EMULATOR_STORAGE_PORT);
+      storageInstance = storage;
+    } catch {
+      /* storage emulator not running — cloud uploads stay unavailable */
+    }
+
     // DEV-ONLY debug affordance (emulator builds never ship): lets the
     // offline DoD (browse from cache + queued writes) be exercised from the
     // browser console / verification tooling without touching real networks.
@@ -150,6 +165,21 @@ export function getFirebaseAuth(): Auth {
     }
   }
   return authInstance;
+}
+
+/** Lazily-initialized Storage accessor for cloud-mode uploads (P3). Returns
+ * null when Firebase is unconfigured or the storage app is unavailable —
+ * callers surface an honest upload error rather than a crash. */
+export function getFirebaseStorage(): FirebaseStorage | null {
+  if (initFailure) return null;
+  try {
+    if (!storageInstance) {
+      storageInstance = getStorage(ensureApp());
+    }
+    return storageInstance;
+  } catch {
+    return null;
+  }
 }
 
 /** Lazily-initialized Firestore singleton. Throws FirebaseConfigError when unconfigured. */

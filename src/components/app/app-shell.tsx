@@ -35,6 +35,8 @@ function AuthSplash() {
 export function AppShell() {
   const view = useAppStore((state) => state.view);
   const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
+  // S6 — the capture FAB must not overlap the bulk-selection action bar.
+  const bulkSelectMode = useAppStore((state) => state.bulkSelectMode);
   const { t } = useI18n();
   const { authReady, user, demoMode } = useAuth();
   const queryClient = useQueryClient();
@@ -99,16 +101,19 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Mobile floating capture button */}
-      <button
-        type="button"
-        aria-label={t("a11y.capture")}
-        title={t("a11y.capture")}
-        onClick={() => setCaptureOpen(true)}
-        className="fixed bottom-[76px] end-4 z-40 flex size-13 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 lg:hidden"
-      >
-        <Plus className="size-6" aria-hidden="true" />
-      </button>
+      {/* Mobile floating capture button — hidden during bulk selection (S6):
+          capturing and bulk-editing are mutually exclusive flows. */}
+      {bulkSelectMode ? null : (
+        <button
+          type="button"
+          aria-label={t("a11y.capture")}
+          title={t("a11y.capture")}
+          onClick={() => setCaptureOpen(true)}
+          className="fixed bottom-[76px] end-4 z-40 flex size-13 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95 lg:hidden"
+        >
+          <Plus className="size-6" aria-hidden="true" />
+        </button>
+      )}
 
       <BottomNav />
 

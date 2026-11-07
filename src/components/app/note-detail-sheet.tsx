@@ -475,7 +475,10 @@ export function NoteDetailSheet() {
               <TagChipsInput
                 tags={note.tags.map((tag) => tag.name)}
                 onChange={handleTagsChange}
-                suggestions={allTags.map((tag) => tag.name)}
+                suggestions={allTags.map((tag) => ({
+                  name: tag.name,
+                  noteCount: tag.noteCount,
+                }))}
                 ariaLabel={t("note.detail.tags")}
               />
             </div>

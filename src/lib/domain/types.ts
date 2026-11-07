@@ -120,3 +120,39 @@ export type UpdateNoteInput = Partial<
     isArchived?: boolean;
   }
 >;
+
+// ---------------------------------------------------------------------------
+// S6 — bulk operations
+// ---------------------------------------------------------------------------
+
+export type BulkNoteAction =
+  | "categorize"
+  | "archive"
+  | "unarchive"
+  | "delete"
+  | "restore";
+
+export interface BulkNotesInput {
+  ids: string[];
+  action: BulkNoteAction;
+  /** categorize only: null = uncategorize (move to "none"). */
+  categoryId?: string | null;
+}
+
+export interface BulkNotesResponse {
+  ok: true;
+  /** How many of the requested ids the action actually touched. */
+  updated: number;
+}
+
+// ---------------------------------------------------------------------------
+// P3 — real file upload
+// ---------------------------------------------------------------------------
+
+export interface UploadedFileInfo {
+  /** URL to store on the note (demo: /api/files/<key>; cloud: Storage URL). */
+  url: string;
+  /** Original client-side filename (metadata only, never used for storage). */
+  fileName: string;
+  fileSize: number;
+}

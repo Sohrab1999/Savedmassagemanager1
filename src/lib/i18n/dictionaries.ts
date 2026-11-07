@@ -78,6 +78,25 @@ export const en = {
   "library.clearFilters": "Clear filters",
   "library.loadMore": "Load more ({n} remaining)",
 
+  // S6 — bulk operations
+  "library.bulk.select": "Select items",
+  "library.bulk.exit": "Exit selection",
+  "library.bulk.selected": "{n} selected",
+  "library.bulk.categorize": "Categorize",
+  "library.bulk.archive": "Archive",
+  "library.bulk.unarchive": "Unarchive",
+  "library.bulk.delete": "Delete",
+  "library.bulk.restore": "Restore",
+  "library.bulk.clear": "Clear selection",
+  "library.bulk.selectCategory": "Choose category…",
+  "library.bulk.categorizedToast": "{n} items categorized",
+  "library.bulk.archivedToast": "{n} items archived",
+  "library.bulk.unarchivedToast": "{n} items removed from archive",
+  "library.bulk.trashedToast": "{n} items moved to trash",
+  "library.bulk.restoredToast": "{n} items restored",
+  "a11y.selectItem": "Select item: {title}",
+  "a11y.bulkActions": "Bulk actions",
+
   "categories.title": "Categories",
   "categories.tab.categories": "Categories",
   "categories.tab.tags": "Tags",
@@ -149,6 +168,22 @@ export const en = {
   "capture.titleRequired": "Title is required",
   "capture.urlRequired": "A valid link is required",
   "capture.contentRequired": "Content is required for text items",
+
+  // P3 — real file upload (file/image capture)
+  "capture.fileLabel": "File",
+  "capture.imageFileLabel": "Image file",
+  "capture.chooseFile": "Choose a file to upload",
+  "capture.fileConstraints": "Images, PDF, TXT, MD, CSV — up to 10 MB",
+  "capture.uploading": "Uploading…",
+  "capture.uploadFailed": "Upload failed — please try again",
+  "capture.fileTooLarge": "File exceeds the 10 MB limit",
+  "capture.fileTypeUnsupported": "This file type is not supported",
+  "capture.fileRequired": "Upload a file or remove the File type",
+  "capture.removeFile": "Remove file",
+  "capture.titleFromFile": "Title filled from the file name — adjust it if needed.",
+
+  // QE-tagging — typeahead suggestions
+  "tags.suggestions": "Suggestions",
 
   "settings.title": "Settings",
   "settings.profile": "Profile",
@@ -312,6 +347,25 @@ export const fa: Record<I18nKey, string> = {
   "library.clearFilters": "پاک کردن فیلترها",
   "library.loadMore": "نمایش بیشتر ({n} مورد باقی‌مانده)",
 
+  // S6 — عملیات گروهی
+  "library.bulk.select": "انتخاب موارد",
+  "library.bulk.exit": "خروج از انتخاب",
+  "library.bulk.selected": "{n} مورد انتخاب شد",
+  "library.bulk.categorize": "دسته‌بندی",
+  "library.bulk.archive": "بایگانی",
+  "library.bulk.unarchive": "خروج از بایگانی",
+  "library.bulk.delete": "حذف",
+  "library.bulk.restore": "بازگردانی",
+  "library.bulk.clear": "لغو انتخاب",
+  "library.bulk.selectCategory": "انتخاب دسته…",
+  "library.bulk.categorizedToast": "{n} مورد دسته‌بندی شد",
+  "library.bulk.archivedToast": "{n} مورد بایگانی شد",
+  "library.bulk.unarchivedToast": "{n} مورد از بایگانی خارج شد",
+  "library.bulk.trashedToast": "{n} مورد به سطل منتقل شد",
+  "library.bulk.restoredToast": "{n} مورد بازگردانی شد",
+  "a11y.selectItem": "انتخاب مورد: {title}",
+  "a11y.bulkActions": "عملیات گروهی",
+
   "categories.title": "دسته‌ها",
   "categories.tab.categories": "دسته‌ها",
   "categories.tab.tags": "برچسب‌ها",
@@ -383,6 +437,22 @@ export const fa: Record<I18nKey, string> = {
   "capture.titleRequired": "عنوان الزامی است",
   "capture.urlRequired": "لینک معتبر الزامی است",
   "capture.contentRequired": "برای مورد متنی، نوشتن متن الزامی است",
+
+  // P3 — آپلود واقعی فایل (ثبت دستی فایل/تصویر)
+  "capture.fileLabel": "فایل",
+  "capture.imageFileLabel": "فایل تصویر",
+  "capture.chooseFile": "انتخاب فایل برای آپلود",
+  "capture.fileConstraints": "تصویر، PDF، TXT، MD، CSV — حداکثر ۱۰ مگابایت",
+  "capture.uploading": "در حال آپلود…",
+  "capture.uploadFailed": "آپلود ناموفق بود — دوباره تلاش کنید",
+  "capture.fileTooLarge": "حجم فایل بیش از ۱۰ مگابایت است",
+  "capture.fileTypeUnsupported": "این نوع فایل پشتیبانی نمی‌شود",
+  "capture.fileRequired": "یک فایل آپلود کنید یا نوع «فایل» را بردارید",
+  "capture.removeFile": "حذف فایل",
+  "capture.titleFromFile": "عنوان از نام فایل پر شد — در صورت نیاز آن را تغییر دهید.",
+
+  // QE-tagging — پیشنهاد برچسب
+  "tags.suggestions": "پیشنهادها",
 
   "settings.title": "تنظیمات",
   "settings.profile": "پروفایل",

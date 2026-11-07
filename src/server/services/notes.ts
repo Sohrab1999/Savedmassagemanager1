@@ -254,3 +254,77 @@ export async function restoreNote(id: string): Promise<boolean> {
   await db.note.update({ where: { id }, data: { deletedAt: null } });
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// S6 — bulk operations
+// ---------------------------------------------------------------------------
+
+export interface BulkNotesInput {
+  ids: string[];
+  action: "categorize" | "archive" | "unarchive" | "delete" | "restore";
+  /** categorize only: null = uncategorize. */
+  categoryId?: string | null;
+}
+
+export interface BulkNotesResponse {
+  ok: true;
+  /** How many of the requested ids were actually touched by this action. */
+  updated: number;
+}
+
+/** Applies one action to many notes in ONE Prisma statement (one SQL batch).
+ * State guards keep the semantics consistent with the single-note endpoints:
+ * categorize/archive/unarchive/delete only touch live notes; restore only
+ * touches notes that are actually in the trash. */
+export async function bulkUpdateNotes(
+  input: BulkNotesInput,
+): Promise<BulkNotesResponse> {
+  const liveWhere = { id: { in: input.ids }, deletedAt: null };
+  const trashedWhere = { id: { in: input.ids }, deletedAt: { not: null } };
+
+  let result: { count: number };
+  switch (input.action) {
+    case "categorize": {
+      const categoryId = input.categoryId || null;
+      if (categoryId) {
+        const category = await db.category.findUnique({
+          where: { id: categoryId },
+          select: { id: true },
+        });
+        if (!category) {
+          throw new Error("category-not-found");
+        }
+      }
+      result = await db.note.updateMany({
+        where: liveWhere,
+        data: { categoryId },
+      });
+      break;
+    }
+    case "archive":
+      result = await db.note.updateMany({
+        where: liveWhere,
+        data: { isArchived: true },
+      });
+      break;
+    case "unarchive":
+      result = await db.note.updateMany({
+        where: { ...liveWhere, isArchived: true },
+        data: { isArchived: false },
+      });
+      break;
+    case "delete":
+      result = await db.note.updateMany({
+        where: liveWhere,
+        data: { deletedAt: new Date() },
+      });
+      break;
+    case "restore":
+      result = await db.note.updateMany({
+        where: trashedWhere,
+        data: { deletedAt: null },
+      });
+      break;
+  }
+  return { ok: true, updated: result.count };
+}

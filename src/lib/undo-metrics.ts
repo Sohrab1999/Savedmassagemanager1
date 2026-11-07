@@ -38,12 +38,14 @@ function write(metrics: UndoMetrics): void {
   }
 }
 
-export function recordDeletion(): void {
+/** Records `count` deletions in one call (S6 bulk deletes count each note). */
+export function recordDeletion(count = 1): void {
   const current = getUndoMetrics();
-  write({ deletions: current.deletions + 1, undos: current.undos });
+  write({ deletions: current.deletions + count, undos: current.undos });
 }
 
-export function recordUndo(): void {
+/** Records `count` undos in one call (S6 bulk restore counts each note). */
+export function recordUndo(count = 1): void {
   const current = getUndoMetrics();
-  write({ deletions: current.deletions, undos: current.undos + 1 });
+  write({ deletions: current.deletions, undos: current.undos + count });
 }

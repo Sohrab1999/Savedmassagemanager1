@@ -47,6 +47,27 @@ export const updateNoteSchema = createNoteSchema.partial().extend({
   isArchived: z.boolean().optional(),
 });
 
+// S6 — bulk operations. Max 500 ids = the Firestore writeBatch ceiling, so one
+// request maps to at most one committed batch on both backends.
+export const bulkNoteActionSchema = z.enum([
+  "categorize",
+  "archive",
+  "unarchive",
+  "delete",
+  "restore",
+]);
+
+export const bulkNoteSchema = z
+  .object({
+    ids: z.array(z.string().trim().min(1).max(128)).min(1).max(500),
+    action: bulkNoteActionSchema,
+    /** categorize: `null` = uncategorize (move to "none"). Ignored otherwise. */
+    categoryId: z.string().trim().max(64).nullable().optional(),
+  })
+  .refine((data) => data.action !== "categorize" || data.categoryId !== undefined, {
+    message: "category-required",
+  });
+
 export const createCategorySchema = z.object({
   name: z.string().trim().min(1).max(60),
   nameFa: optionalTrimmed(60),

@@ -12,6 +12,8 @@ import * as repository from "@/services/repository";
 import { getCurrentUser } from "@/services/firebase";
 import { apiRoutes } from "@/lib/api";
 import type {
+  BulkNotesInput,
+  BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
   NoteDTO,
@@ -21,6 +23,7 @@ import type {
   StatsDTO,
   TagDTO,
   UpdateNoteInput,
+  UploadedFileInfo,
 } from "@/domain/types";
 
 export type DataMode = "cloud" | "demo";
@@ -61,6 +64,18 @@ export const dataSource = {
     getCurrentUser()
       ? repository.restoreNote(id)
       : apiRoutes.restoreNote(id),
+
+  // S6 — bulk operations: ONE batched write per action on both backends.
+  bulkUpdateNotes: (input: BulkNotesInput): Promise<BulkNotesResponse> =>
+    getCurrentUser()
+      ? repository.bulkUpdateNotes(input)
+      : apiRoutes.bulkNotes(input),
+
+  // P3 — real file upload for «فایل/تصویر» notes (manual capture path).
+  uploadFile: (file: File): Promise<UploadedFileInfo> =>
+    getCurrentUser()
+      ? repository.uploadFile(file)
+      : apiRoutes.uploadFile(file),
 
   listCategories: (): Promise<{ items: CategoryDTO[] }> =>
     getCurrentUser()

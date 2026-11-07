@@ -19,6 +19,8 @@ import { getCurrentUser } from "@/services/firebase";
 import { ApiError } from "@/lib/api/client";
 import type { LibraryFiltersState } from "@/stores/app-store";
 import type {
+  BulkNotesInput,
+  BulkNotesResponse,
   CategoryDTO,
   NoteDTO,
   NoteFilters,
@@ -177,6 +179,17 @@ export function useRestoreNote(): Mutation<string, { ok: true }> {
   const invalidate = useInvalidateNotes();
   return useMutation({
     mutationFn: dataSource.restoreNote,
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** S6 — bulk operations. One mutation = ONE batched write per action on both
+ * backends; the invalidate covers every derived cache (notes, note, stats,
+ * categories, tags) since a bulk action can change all of their counters. */
+export function useBulkNotes(): Mutation<BulkNotesInput, BulkNotesResponse> {
+  const invalidate = useInvalidateNotes();
+  return useMutation({
+    mutationFn: dataSource.bulkUpdateNotes,
     onSuccess: () => invalidate(),
   });
 }
