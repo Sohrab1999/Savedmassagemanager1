@@ -6,6 +6,26 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-05
 
+### Step 23 — S5 DONE: Undo delete (soft delete + 7 s toast restore + trash view + undo-rate KPI)
+- **Trigger:** Roadmap Phase 3 item S5 (owner order): «در toast.error→success دکمه «بازگردانی» (پنجره ۷ ثانیه‌ای + حذف نرم deletedAt)».
+- **Honest provenance note:** the S5 code and its cloud-mode evidence screenshots had ALREADY been committed inside the previous step's commit `806d717` (bundled with the G1 work; commit message only mentions G1 — recorded here so the ledger matches reality). SNAPSHOT v22 still listed S5 as pending. Step 23 = own live verification of the full DoD (demo mode, fresh browser run), evidence review (all 9 screenshots viewed and confirmed), documentation close-out. No new S5 code was needed.
+- **What S5 ships (implemented in `806d717`, verified this step):**
+  - **Data:** `NoteDTO.deletedAt: string | null` + `NoteFilters.trash?`; Prisma `Note.deletedAt DateTime?` + `@@index([deletedAt])`; Firestore `NoteDoc.deletedAt?: number | null`; `firestore.rules` whitelists optional `deletedAt` (rules-test 39/39).
+  - **Demo (Prisma/SQLite):** `server/services/notes.ts` — delete = `update({deletedAt})`, restore = `update({deletedAt: null})`, list filters `trash ? {deletedAt: {not: null}} : {deletedAt: null}`, **7-day auto-purge** (`deleteMany` where `deletedAt < now-7d`, runs on every list); `POST /api/notes/[id]/restore`.
+  - **Cloud (Firestore):** repository `deleteNote` = soft delete, `restoreNote` = `updateDoc({deletedAt: null})`; client-side 7-day purge batch in `realtimeStore` (once per session). Trash excluded from default lists/stats/categories/tags in both modes.
+  - **UI:** delete confirm → `toast.success(«به سطل منتقل شد», {duration: 7000, action: «بازگردانی»})` → `restoreFromTrash` (also records the KPI); trashed note's detail sheet shows «بازگردانی از سطل» instead of delete; library toolbar gets the «سطل» chip (Trash2) with active-filter chip removal (QE5) and mutual exclusion with archived; trash deep-links via the S3 hash (`trash=1`).
+  - **KPI (undo-rate):** `src/lib/undo-metrics.ts` — per-device localStorage counter (deletions/undos), displayed in Settings → About as «نرخ بازگردانی حذف‌ها: N از M (P٪)» (fa+en).
+- **Live verification (agent-browser, demo mode, this step):**
+  1. Reseeded demo (POST /api/seed → 23 notes; DB had been emptied — runtime file, expected).
+  2. Delete «لیست خرید هفته» → confirm dialog honestly says «به سطل منتقل می‌شود و تا ۷ روز قابل بازیابی است» → toast «به سطل منتقل شد» **with the «بازگردانی» action button** (7 s window) — `s5-demo-undo-toast-fresh.png`; count 21 → 20.
+  3. «سطل» chip → trash view shows exactly 1 item + active-filter chip «سطل» — `s5-demo-trash-view.png`; deep-link `#/library?trash=1` survives reload.
+  4. Trashed note detail shows «بازگردانی از سطل» — `s5-demo-trash-detail.png`; clicking it restores the note: trash 1 → 0 (API `?trash=true` count confirmed), library back to 21 — `s5-demo-restored-back-to-21.png`.
+  5. **Undo-rate KPI displayed: «۱ از ۱ (۱۰۰٪)»** in Settings → About — `s5-demo-undo-rate.png` (deletions=1, undos=1 — exactly the session's counts).
+  6. Cloud-mode DoD evidence reviewed and confirmed (from `806d717`): trash view holds the soft-deleted doc (`s5-cloud-trash-view.png`), restore returns it to the default view with «مورد بازگردانی شد» toast (`s5-cloud-undo-restored.png`, `s5-cloud-restore-from-trash.png`), undo-rate section (`s5-cloud-undo-rate.png`), demo toast (`s5-demo-undo-toast.png`).
+  - Browser console: 0 errors; page errors: none. First verification attempt found one test-harness-only quirk (JS-eval clicks on the restore button didn't always fire React's handler; native agent-browser clicks do) — NOT an app bug; no code change.
+- **Lint:** clean. **SNAPSHOT:** v23.
+- **Commit:** `feat(s5): verify + document undo-delete close-out (demo DoD evidence, undo-rate KPI, docs)` (live `git rev-parse HEAD`; backup parity proven at commit time).
+
 ### Step 22 — G1 DONE: Realtime (onSnapshot) + Offline persistence (Cloud) + demo liveness polling
 - **Trigger:** Roadmap Phase 3 item G1 (owner order): «onSnapshot برای notes/categories/tags + IndexedDB persistence؛ جایگزینی خواندن one-shot».
 - **Changes:**
