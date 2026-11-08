@@ -101,11 +101,11 @@ Items that can only be executed once the owner activates the corresponding provi
 2. Bookmarklet
 3. Browser Extension; OCR; auto-tag suggestions; semantic search; AI summarization; reading reminders; related items
 
-## Product strategy wave — "Next Value" (registered 2026-11-07; N1+N2 step 28; N3+N4+N5 step 29)
+## Product strategy wave — "Next Value" (registered 2026-11-07; N1+N2 step 28; N3+N4+N5 step 29; N6+N7+N8 step 30)
 
 The senior Product-Strategist analysis (mandated by the owner) produced a second standard checkbox roadmap: **`roadmaps/PRODUCT-STRATEGY-ROADMAP.md`** (N1–N10 feature cards, 5-bucket categorization, Top-10 priority scoring with the same formula as the first roadmap, Opportunity Map, value-vs-cost table, explicit warnings, and execution phases **6–9** continuing the numbering of `FEATURE-LIBRARY-UPGRADE-ROADMAP.md` phases 1–5). It also formalizes the P1 fast-follow backlog above into candidate items (e.g. N8 PWA). **Standing discipline: no further N-item starts without an explicit owner order**, and the G2 AI decision remains owner-gated (§ "پکیج تصمیم G2"). When an owner order arrives, the authoritative checklist lives in the strategy roadmap.
 
-**Execution status (2026-11-07, step 29):** the owner ordered **N1 + N2** (step 28) and then **N3 (Persian search normalization + highlight), N4 (interactive dashboard deep-links), N5 (trash management: countdown, causal single purge, mandatory two-step empty-trash)** (step 29) — all five COMPLETE with full DoD verification (details + evidence in the strategy roadmap §7 phases 6–7 and `worklog.md` steps 28–29). **Wave 6 is CLOSED; wave 7 is half-done (N4+N5 ✅, N10 ⏳).** Waves 8–9 and the G2 ruling remain awaiting owner orders.
+**Execution status (2026-11-08, step 30):** the owner ordered **N1 + N2** (step 28), **N3 + N4 + N5** (step 29), and **N6 (related notes, no-AI) + N7 (weekly resurfacing v1) + N8 (installable PWA)** (step 30) — all eight COMPLETE with full DoD verification (details + evidence in the strategy roadmap §7 phases 6–8 and `worklog.md` steps 28–30). **Wave 6 CLOSED; wave 7: N4+N5 ✅ (N10 ⏳); phase 8: N6+N7+N8 ✅.** Phase 9 (N9 + the G2 ruling + optional insights) and N10 remain awaiting owner orders.
 
 ---
 
