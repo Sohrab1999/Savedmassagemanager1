@@ -6,6 +6,8 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  DuplicateCheckInput,
+  DuplicateCheckResponse,
   EmptyTrashResponse,
   ImportReport,
   NoteDTO,
@@ -77,6 +79,17 @@ export const apiRoutes = {
   // change — recorded DoD decision).
   resurfaceCandidates: (limit = 10) =>
     api<{ items: NoteDTO[] }>(`/api/resurface?limit=${limit}`),
+
+  // N10 — capture-time duplicate check (soft warning only; the result is
+  // informational and never blocks a capture).
+  duplicateCheck: (input: DuplicateCheckInput) => {
+    const params = new URLSearchParams();
+    if (input.url) params.set("url", input.url);
+    if (input.title) params.set("title", input.title);
+    return api<DuplicateCheckResponse>(
+      `/api/notes/duplicate?${params.toString()}`,
+    );
+  },
 
   // P3 — multipart upload. NOTE: dedicated fetch (the shared `api` helper
   // always sets Content-Type: application/json, which would corrupt FormData).

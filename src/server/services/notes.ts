@@ -5,10 +5,13 @@ import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { normalizePersian } from "@/lib/persian";
+import { findDuplicate } from "@/lib/duplicate";
 import { relatedNotes, RELATED_LIMIT } from "@/lib/related";
 import { UPLOAD_DIR, isValidFileKey } from "@/server/storage";
 import type {
   CreateNoteInput,
+  DuplicateCheckInput,
+  DuplicateCheckResponse,
   NoteDTO,
   NoteListResponse,
   NoteSort,
@@ -215,6 +218,25 @@ export async function getRelatedNotes(
     include: noteInclude,
   });
   return relatedNotes(current, pool.map(toNoteDTO), limit);
+}
+
+// ---------------------------------------------------------------------------
+// N10 — capture-time duplicate detection (soft warning, non-blocking)
+// ---------------------------------------------------------------------------
+
+/** The existing note a new capture collides with, if any. Pool = every
+ * non-trashed note (archived included — an archived item is still a real
+ * duplicate); the PURE matcher in `lib/duplicate.ts` is the single matching
+ * source for both backends. Soft feature: this NEVER blocks a capture. */
+export async function findDuplicateNote(
+  input: DuplicateCheckInput,
+): Promise<DuplicateCheckResponse> {
+  const pool = await db.note.findMany({
+    where: { deletedAt: null },
+    include: noteInclude,
+  });
+  const hit = findDuplicate(pool.map(toNoteDTO), input);
+  return { note: hit?.note ?? null, matchOn: hit?.matchOn ?? null };
 }
 
 export async function createNote(

@@ -227,6 +227,12 @@ export const en = {
   "capture.removeFile": "Remove file",
   "capture.titleFromFile": "Title filled from the file name — adjust it if needed.",
 
+  // N10 — soft duplicate warning (capture is NEVER blocked)
+  "capture.duplicateFound": "This item is already saved in “{category}”",
+  "capture.duplicateFoundNoCategory": "This item is already saved",
+  "capture.duplicateHint": "Saving again is still allowed — this is just a heads-up.",
+  "capture.duplicateView": "View",
+
   // QE-tagging — typeahead suggestions
   "tags.suggestions": "Suggestions",
 
@@ -563,6 +569,12 @@ export const fa: Record<I18nKey, string> = {
   "capture.fileRequired": "یک فایل آپلود کنید یا نوع «فایل» را بردارید",
   "capture.removeFile": "حذف فایل",
   "capture.titleFromFile": "عنوان از نام فایل پر شد — در صورت نیاز آن را تغییر دهید.",
+
+  // N10 — هشدار نرم تکرار (ثبت هرگز بلاک نمی‌شود)
+  "capture.duplicateFound": "این آیتم پیش‌تر در «{category}» ذخیره شده",
+  "capture.duplicateFoundNoCategory": "این آیتم پیش‌تر ذخیره شده",
+  "capture.duplicateHint": "ثبت دوباره همچنان آزاد است — این فقط یک هشدار نرم است.",
+  "capture.duplicateView": "مشاهده",
 
   // QE-tagging — پیشنهاد برچسب
   "tags.suggestions": "پیشنهادها",

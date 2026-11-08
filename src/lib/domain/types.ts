@@ -188,6 +188,29 @@ export const RESURFACE_MIN_AGE_MS = 30 * 86_400_000;
 export const RESURFACE_POOL_LIMIT = 10;
 
 // ---------------------------------------------------------------------------
+// N10 — capture-time duplicate detection (soft warning; capture is NEVER
+// blocked). Shared types: the demo service, the route, the cloud live-array
+// path and the client hook all speak this shape (single source, client-safe).
+// ---------------------------------------------------------------------------
+
+/** Which field produced the duplicate match. URL matches are canonicalized
+ * (src/lib/duplicate.ts); title matches are N3-normalized EXACT equality. */
+export type DuplicateMatchOn = "url" | "title";
+
+/** Input for a duplicate check. At least one field must be non-empty for the
+ * check to run (the route answers 400 `duplicate.no-input` otherwise). */
+export interface DuplicateCheckInput {
+  url?: string | null;
+  title?: string | null;
+}
+
+export interface DuplicateCheckResponse {
+  /** The existing note the new capture collides with; null = no match. */
+  note: NoteDTO | null;
+  matchOn: DuplicateMatchOn | null;
+}
+
+// ---------------------------------------------------------------------------
 // N2 — JSON import (the counterpart of /api/export)
 // ---------------------------------------------------------------------------
 

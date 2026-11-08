@@ -22,6 +22,7 @@ import type {
   BulkNotesInput,
   BulkNotesResponse,
   CategoryDTO,
+  DuplicateCheckInput,
   EmptyTrashResponse,
   ImportReport,
   NoteDTO,
@@ -228,6 +229,29 @@ export function useResurfaceCandidates() {
     queryKey: ["resurface", scopeKey()] as const,
     queryFn: () => dataSource.resurfaceCandidates(),
     refetchInterval: liveRefetch(),
+  });
+}
+
+/** N10 — capture-time duplicate check (soft warning, NO blocking). Transient
+ * dialog state: keyed by the exact (url,title) pair being checked, enabled
+ * only when there is something to check, and deliberately NOT polled — the
+ * capture dialog resets on open, so a stale banner can never outlive it.
+ * `gcTime: 0` matters for CORRECTNESS, not just freshness: re-entering the
+ * dialog with a previously-checked value must re-fetch, never instantly
+ * re-serve the older cached match (the library may have changed between the
+ * two checks — e.g. the same URL saved again meanwhile). */
+export function useDuplicateCheck(target: DuplicateCheckInput | null) {
+  return useQuery({
+    queryKey: [
+      "duplicate",
+      scopeKey(),
+      target?.url ?? "",
+      target?.title ?? "",
+    ] as const,
+    queryFn: () => dataSource.duplicateCheck(target as DuplicateCheckInput),
+    enabled: Boolean(target),
+    staleTime: 0,
+    gcTime: 0,
   });
 }
 

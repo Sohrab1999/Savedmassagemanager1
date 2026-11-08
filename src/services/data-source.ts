@@ -16,6 +16,8 @@ import type {
   BulkNotesResponse,
   CategoryDTO,
   CreateNoteInput,
+  DuplicateCheckInput,
+  DuplicateCheckResponse,
   EmptyTrashResponse,
   ImportReport,
   NoteDTO,
@@ -90,6 +92,14 @@ export const dataSource = {
     getCurrentUser()
       ? repository.resurfaceCandidates()
       : apiRoutes.resurfaceCandidates(),
+
+  // N10 — capture-time duplicate detection (soft warning, NO blocking).
+  // Demo: GET /api/notes/duplicate; cloud: pure matcher over the G1 live
+  // array. The result never blocks a capture and never deletes anything.
+  duplicateCheck: (input: DuplicateCheckInput): Promise<DuplicateCheckResponse> =>
+    getCurrentUser()
+      ? repository.findDuplicateNote(input)
+      : apiRoutes.duplicateCheck(input),
 
   // P3 — real file upload for «فایل/تصویر» notes (manual capture path).
   uploadFile: (file: File): Promise<UploadedFileInfo> =>

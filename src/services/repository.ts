@@ -40,6 +40,7 @@ import {
   importTagSchema,
 } from "@/lib/domain/import-schema";
 import { normalizePersian } from "@/lib/persian";
+import { findDuplicate } from "@/lib/duplicate";
 import { relatedNotes } from "@/lib/related";
 import {
   RESURFACE_MIN_AGE_MS,
@@ -55,6 +56,8 @@ import {
   type CategoryDoc,
   type CategoryRefDoc,
   type CreateNoteInput,
+  type DuplicateCheckInput,
+  type DuplicateCheckResponse,
   type EmptyTrashResponse,
   type ImportReport,
   type NoteDTO,
@@ -1072,6 +1075,20 @@ export async function getRelatedNotes(id: string): Promise<NoteDTO[]> {
   if (!current) return [];
   const pool = notes.filter((note) => note.deletedAt === null);
   return relatedNotes(current, pool);
+}
+
+/** N10 — capture-time duplicate detection (soft warning, non-blocking): the
+ * PURE matcher (src/lib/duplicate.ts — same function as the demo service)
+ * over the live non-trashed notes. Zero extra Firestore reads. */
+export async function findDuplicateNote(
+  input: DuplicateCheckInput,
+): Promise<DuplicateCheckResponse> {
+  const notes = await liveNotes();
+  const hit = findDuplicate(
+    notes.filter((note) => note.deletedAt === null),
+    input,
+  );
+  return { note: hit?.note ?? null, matchOn: hit?.matchOn ?? null };
 }
 
 /** N7 — resurfacing candidates (v1: oldest-first, ≥30 days, no schema

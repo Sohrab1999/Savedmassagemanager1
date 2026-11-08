@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type ChangeEvent, type ClipboardEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type ClipboardEvent } from "react";
 import {
+  Copy,
   File,
   FileText,
   Image as ImageIcon,
@@ -34,11 +35,11 @@ import {
 } from "@/components/ui/select";
 import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
 import { TagChipsInput } from "@/components/app/tag-chips-input";
-import { useCategories, useCreateNote, useTags } from "@/hooks/queries";
+import { useCategories, useCreateNote, useDuplicateCheck, useTags } from "@/hooks/queries";
 import { useI18n } from "@/lib/i18n";
 import type { I18nKey } from "@/lib/i18n/dictionaries";
 import { formatBytes } from "@/lib/format";
-import { NOTE_TYPES, type NoteType } from "@/lib/domain/types";
+import { NOTE_TYPES, type DuplicateCheckInput, type NoteType } from "@/lib/domain/types";
 import { dataSource } from "@/services/data-source";
 import { ApiError } from "@/lib/api/client";
 import { useAppStore } from "@/stores/app-store";
@@ -96,6 +97,7 @@ export function QuickCapture() {
   const { t, locale } = useI18n();
   const open = useAppStore((state) => state.captureOpen);
   const setOpen = useAppStore((state) => state.setCaptureOpen);
+  const openNote = useAppStore((state) => state.openNote);
   const categoriesQuery = useCategories();
   const tagsQuery = useTags();
   const createNote = useCreateNote();
@@ -108,6 +110,24 @@ export function QuickCapture() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<I18nKey | null>(null);
   const [titleFromFile, setTitleFromFile] = useState(false);
+
+  // N10 — soft duplicate warning: debounce the collidable fields (url/title)
+  // and check them against the whole non-trashed library via the backend.
+  // Informational ONLY — the result never disables saving (owner rule:
+  // «ثبت دوباره همچنان آزاد است»). Hooks stay unconditional (compiler rule).
+  const [dedupeTarget, setDedupeTarget] = useState<DuplicateCheckInput | null>(null);
+  useEffect(() => {
+    const url = form.url.trim() || null;
+    const title = form.title.trim() || null;
+    if (!url && !title) {
+      setDedupeTarget(null);
+      return;
+    }
+    const timer = window.setTimeout(() => setDedupeTarget({ url, title }), 400);
+    return () => window.clearTimeout(timer);
+  }, [form.url, form.title]);
+  const duplicateCheck = useDuplicateCheck(dedupeTarget);
+  const duplicateNote = duplicateCheck.data?.note ?? null;
 
   // Reset the form whenever the dialog opens (render-phase state adjustment).
   const [lastOpen, setLastOpen] = useState(open);
@@ -320,6 +340,48 @@ export function QuickCapture() {
                 onChange={(event) => patch({ url: event.target.value })}
                 placeholder={t("capture.urlPlaceholder")}
               />
+            </div>
+          ) : null}
+
+          {/* N10 — soft duplicate warning (informational ONLY: the banner
+              names the existing item; saving again stays free and the save
+              button is never disabled by it). */}
+          {duplicateNote ? (
+            <div
+              role="status"
+              className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5"
+            >
+              <Copy
+                className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="text-xs font-medium leading-5">
+                  {duplicateNote.category
+                    ? t("capture.duplicateFound", {
+                        category: localizedCategoryName(
+                          duplicateNote.category,
+                          locale,
+                        ),
+                      })
+                    : t("capture.duplicateFoundNoCategory")}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {t("capture.duplicateHint")}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 self-center px-2.5 text-xs"
+                onClick={() => {
+                  setOpen(false);
+                  openNote(duplicateNote.id);
+                }}
+              >
+                {t("capture.duplicateView")}
+              </Button>
             </div>
           ) : null}
 
