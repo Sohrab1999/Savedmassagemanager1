@@ -42,12 +42,23 @@ export interface TypeMeta {
 }
 
 export const TYPE_META: Record<NoteType, TypeMeta> = {
-  text: { labelKey: "type.text", icon: TypeIcon, color: "#0d9488" },
-  link: { labelKey: "type.link", icon: Link2, color: "#d97706" },
-  image: { labelKey: "type.image", icon: ImageIcon, color: "#d946ef" },
-  video: { labelKey: "type.video", icon: Video, color: "#f43f5e" },
-  file: { labelKey: "type.file", icon: File, color: "#ea580c" },
+  // UX-A1 (S-1) — colors are the SEMANTIC chart tokens from globals.css (both
+  // themes), the single type-color source: 1=text / 2=link / 3=video /
+  // 4=image / 5=file. Never put a raw hex here — a new content type must get
+  // a new/next chart token in BOTH theme blocks instead.
+  text: { labelKey: "type.text", icon: TypeIcon, color: "var(--chart-1)" },
+  link: { labelKey: "type.link", icon: Link2, color: "var(--chart-2)" },
+  image: { labelKey: "type.image", icon: ImageIcon, color: "var(--chart-4)" },
+  video: { labelKey: "type.video", icon: Video, color: "var(--chart-3)" },
+  file: { labelKey: "type.file", icon: File, color: "var(--chart-5)" },
 };
+
+/** UX-A1 (S-1) — the ONLY sanctioned way to tint a token color: the old
+ * `${hex}14` alpha-suffix trick cannot express `var()` colors, so tints go
+ * through color-mix over the token reference. */
+export function tintOf(color: string): string {
+  return `color-mix(in oklab, ${color} 8%, transparent)`;
+}
 
 export const CATEGORY_ICONS: Array<{ name: string; icon: LucideIcon }> = [
   { name: "folder", icon: Folder },
@@ -76,6 +87,10 @@ export const CATEGORY_ICONS: Array<{ name: string; icon: LucideIcon }> = [
   { name: "sparkles", icon: Sparkles },
 ];
 
+// NOTE: CATEGORY_COLORS below is the documented EXCEPTION to the UI token
+// system — these hexes are the DATA palette offered to the user when creating
+// a category (the chosen value is stored per category in the DB), not UI
+// theming. Do not "tokenize" them; they are product data, not styling.
 export const CATEGORY_COLORS = [
   "#0d9488",
   "#10b981",

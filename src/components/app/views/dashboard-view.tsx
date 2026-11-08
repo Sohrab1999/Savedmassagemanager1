@@ -4,6 +4,7 @@ import {
   Archive,
   Bookmark,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   Inbox,
   Plus,
@@ -32,7 +33,11 @@ import type { LucideIcon } from "lucide-react";
 
 /** N4 — interactive stats: cards with an equivalent library filter are real
  * buttons (QE3 parity with the category tiles). Keyboard- and
- * screen-reader-accessible via the native <button> + explicit aria-label. */
+ * screen-reader-accessible via the native <button> + explicit aria-label.
+ * UX-A2 (S-5) — deep-link cards gain honest affordance: a chevron (flipped
+ * for RTL), hover elevation and a visible focus ring. The display-only card
+ * (this week — see N4 DoD) deliberately gets NO chevron: a fake affordance
+ * would violate the honesty principle (A-0/P4). */
 function StatCard({
   icon: Icon,
   label,
@@ -52,11 +57,13 @@ function StatCard({
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
         <Icon className="size-5" aria-hidden="true" />
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-xl font-bold leading-6">
           {formatNumber(value, locale)}
         </p>
-        <p className="truncate text-xs text-muted-foreground">{label}</p>
+        <p className="truncate text-xs text-muted-foreground" title={label}>
+          {label}
+        </p>
       </div>
     </>
   );
@@ -75,10 +82,17 @@ function StatCard({
       title={label}
       className={cn(
         "w-full rounded-xl border bg-card text-start shadow-xs transition-all",
-        "hover:border-primary/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring",
+        "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
       )}
     >
-      <span className="flex items-center gap-3 p-4">{body}</span>
+      <span className="flex items-center gap-3 p-4">
+        {body}
+        <ChevronRight
+          className="size-4 shrink-0 text-muted-foreground/70 rtl:-scale-x-100"
+          aria-hidden="true"
+        />
+      </span>
     </button>
   );
 }
@@ -87,6 +101,37 @@ function greetingKey(hour: number) {
   if (hour < 12) return "greeting.morning" as const;
   if (hour < 18) return "greeting.afternoon" as const;
   return "greeting.evening" as const;
+}
+
+/** UX-A8 (S-6) — the capture banner with its OWN headline (the fa string is
+ * the owner's verbatim order: «هرچی در ذهنت است، همین‌جا بگذار»), so it no
+ * longer competes with the header's «ثبت سریع» CTA. The hint line keeps the
+ * classic promise. One component, two placements (see DashboardView). */
+function CaptureBanner() {
+  const { t } = useI18n();
+  const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
+  return (
+    <button
+      type="button"
+      onClick={() => setCaptureOpen(true)}
+      className="flex w-full items-center gap-3 rounded-xl border border-dashed border-primary/50 bg-primary/5 p-4 text-start transition-colors hover:bg-primary/10"
+    >
+      <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+        <Plus className="size-5" aria-hidden="true" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold">
+          {t("dashboard.captureBanner.title")}
+        </span>
+        <span
+          className="block truncate text-xs text-muted-foreground"
+          title={t("dashboard.quickCaptureHint")}
+        >
+          {t("dashboard.quickCaptureHint")}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 export function DashboardView() {
@@ -150,35 +195,34 @@ export function DashboardView() {
 
   return (
     <div className="space-y-5">
-      {/* Greeting */}
+      {/* Greeting — UX-A4 (S-3): the display name is bidi-isolated so a
+          Persian name inside the EN (LTR) greeting can never reorder the
+          punctuation or «crack» the line. <bdi> defaults to dir=auto. */}
       <section className="space-y-1">
         <h1 className="text-xl font-bold sm:text-2xl">
           {t(greetingKey(new Date().getHours()))}
-          {profile?.displayName ? `، ${profile.displayName}` : ""}
+          {profile?.displayName ? (
+            <>
+              {"، "}
+              <bdi dir="auto">{profile.displayName}</bdi>
+            </>
+          ) : null}
         </h1>
         <p className="text-xs text-muted-foreground sm:text-sm">
           {t("dashboard.subtitle")} · {formatDate(new Date().toISOString(), locale)}
         </p>
       </section>
 
-      {/* Quick capture */}
-      <button
-        type="button"
-        onClick={() => setCaptureOpen(true)}
-        className="flex w-full items-center gap-3 rounded-xl border border-dashed border-primary/50 bg-primary/5 p-4 text-start transition-colors hover:bg-primary/10"
-      >
-        <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-          <Plus className="size-5" aria-hidden="true" />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold">
-            {t("dashboard.quickCapture")}
-          </span>
-          <span className="block truncate text-xs text-muted-foreground">
-            {t("dashboard.quickCaptureHint")}
-          </span>
-        </span>
-      </button>
+      {/* UX-A8 (S-6) — CTA hierarchy: on desktop the banner keeps the
+          first row. On MOBILE it yields the first row and lands AFTER the
+          stats grid — the FAB stays the first-class mobile capture entry.
+          Removing the mobile banner entirely is an owner decision and was
+          NOT taken (the banner stays, re-ordered). Rendering one component
+          twice with display toggles keeps the three capture inputs (header
+          button / banner / FAB — P1) intact at every breakpoint. */}
+      <div className="hidden sm:block">
+        <CaptureBanner />
+      </div>
 
       {/* N1 — visible Inbox: the "organize later" debt as a first-class
           surface. One click deep-links to the library filtered on
@@ -205,7 +249,12 @@ export function DashboardView() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold">{t("dashboard.inbox.title")}</span>
-            <span className="block truncate text-xs text-muted-foreground">
+            <span
+              className="block truncate text-xs text-muted-foreground"
+              title={t("dashboard.inbox.desc", {
+                n: formatNumber(stats.uncategorized, locale),
+              })}
+            >
               {t("dashboard.inbox.desc", {
                 n: formatNumber(stats.uncategorized, locale),
               })}
@@ -224,7 +273,9 @@ export function DashboardView() {
             <span className="block text-sm font-medium text-foreground">
               {t("dashboard.inbox.zeroTitle")}
             </span>
-            <span className="block truncate text-xs">{t("dashboard.inbox.zero")}</span>
+            <span className="block truncate text-xs" title={t("dashboard.inbox.zero")}>
+              {t("dashboard.inbox.zero")}
+            </span>
           </span>
         </div>
       )}
@@ -283,6 +334,12 @@ export function DashboardView() {
         </div>
       </section>
 
+      {/* UX-A8 — mobile-only placement of the capture banner: after the
+          stats row (the desktop instance above is display:none here). */}
+      <div className="sm:hidden">
+        <CaptureBanner />
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-2">
         {/* Category overview */}
         <Card>
@@ -310,7 +367,10 @@ export function DashboardView() {
                       <Icon className="size-4" aria-hidden="true" />
                     </span>
                     <span className="min-w-0 text-center xl:text-start">
-                      <span className="block truncate text-xs font-medium">
+                      <span
+                        className="block truncate text-xs font-medium"
+                        title={localizedCategoryName(category, locale)}
+                      >
                         {localizedCategoryName(category, locale)}
                       </span>
                       <span className="block text-[11px] text-muted-foreground">

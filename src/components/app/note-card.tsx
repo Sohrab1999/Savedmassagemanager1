@@ -22,7 +22,7 @@ import {
   splitHighlight,
   type HighlightSegment,
 } from "@/lib/persian";
-import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
+import { localizedCategoryName, tintOf, TYPE_META } from "@/components/app/meta";
 import { trashDaysLeft } from "@/lib/domain/types";
 import { useUpdateNote } from "@/hooks/queries";
 import { useAppStore } from "@/stores/app-store";
@@ -109,7 +109,19 @@ function SelectToggle({
   );
 }
 
-function Thumbnail({ note, className }: { note: NoteDTO; className?: string }) {
+function Thumbnail({
+  note,
+  className,
+  variant = "tile",
+  highlight = null,
+}: {
+  note: NoteDTO;
+  className?: string;
+  /** "tile" = compact square (list rows); "media" = grid media area. */
+  variant?: "tile" | "media";
+  /** N3 — active search regex, so the UX-A3 excerpt keeps match highlights. */
+  highlight?: RegExp | null;
+}) {
   const meta = TYPE_META[note.type] ?? TYPE_META.text;
   const Icon = meta.icon;
 
@@ -151,6 +163,42 @@ function Thumbnail({ note, className }: { note: NoteDTO; className?: string }) {
     );
   }
 
+  // UX-A3 (S-2) — text notes breathe in grid media areas: a fixed 3-line
+  // excerpt of the content replaces the dead «T» glyph, on a soft tinted
+  // pattern with a corner type icon. List rows keep the compact icon tile,
+  // and content-less notes fall back to the tile so the grid never breaks.
+  if (note.type === "text" && variant === "media" && note.content?.trim()) {
+    const excerpt = note.content.trim();
+    const segments = splitHighlight(excerpt, highlight);
+    return (
+      <div
+        className={cn("relative h-full w-full overflow-hidden", className)}
+        style={{ backgroundColor: tintOf(meta.color) }}
+      >
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `repeating-linear-gradient(-45deg, ${tintOf(
+              meta.color,
+            )} 0px 6px, transparent 6px 12px)`,
+          }}
+        />
+        <p className="absolute inset-0 flex items-center p-3.5 text-xs leading-5 text-foreground/90">
+          <span className="line-clamp-3">
+            {renderHighlighted(segments, excerpt)}
+          </span>
+        </p>
+        <span
+          aria-hidden="true"
+          className="absolute bottom-2 end-2 flex size-6 items-center justify-center rounded-lg bg-background/70 shadow-xs backdrop-blur"
+        >
+          <Icon className="size-3.5" style={{ color: meta.color }} />
+        </span>
+      </div>
+    );
+  }
+
   // text / link / file → icon tile
   const domain = note.type === "link" ? domainOf(note.url) : null;
   return (
@@ -159,7 +207,7 @@ function Thumbnail({ note, className }: { note: NoteDTO; className?: string }) {
         "flex h-full w-full flex-col items-center justify-center gap-1",
         className,
       )}
-      style={{ backgroundColor: `${meta.color}14` }}
+      style={{ backgroundColor: tintOf(meta.color) }}
     >
       <Icon className="size-6" style={{ color: meta.color }} aria-hidden="true" />
       {domain ? (
@@ -264,6 +312,7 @@ function TagChips({ note, compact }: { note: NoteDTO; compact?: boolean }) {
       {note.tags.slice(0, 2).map((tag) => (
         <span
           key={tag.id}
+          title={tag.name}
           className={cn(
             "max-w-24 truncate rounded-full bg-secondary px-1.5 py-0.5 text-[10px] leading-4 text-secondary-foreground",
           )}
@@ -337,6 +386,11 @@ export function NoteCard({
   const { snippet, segments: snippetSegments } = searchSnippetOf(note, highlight);
 
   const categoryColor = note.category?.color;
+  // UX-A5 — full strings for native tooltips: every truncated «…» on a card
+  // must be recoverable by hover/AT without opening the note.
+  const categoryName = note.category
+    ? localizedCategoryName(note.category, locale)
+    : null;
   const toggleSelect = onToggleSelect ?? (() => undefined);
 
   if (layout === "list") {
@@ -365,12 +419,15 @@ export function NoteCard({
           <Thumbnail note={note} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
+          <p className="truncate text-sm font-medium" title={note.title}>
             {renderHighlighted(titleSegments, note.title)}
           </p>
           <div className="flex items-center gap-2">
             {snippet ? (
-              <p className="min-w-0 truncate text-xs text-muted-foreground">
+              <p
+                className="min-w-0 truncate text-xs text-muted-foreground"
+                title={snippet}
+              >
                 {renderHighlighted(snippetSegments, snippet)}
               </p>
             ) : null}
@@ -393,6 +450,13 @@ export function NoteCard({
     );
   }
 
+  // UX-A3 — when the grid media area already shows the content excerpt, the
+  // body snippet (for plain text notes it IS the content) would read as a
+  // duplicate; the body falls back to the relative-time row instead. Search
+  // highlighting survives: the excerpt itself renders <mark> segments.
+  const excerptShownInMedia =
+    layout === "grid" && note.type === "text" && !!note.content?.trim();
+
   return (
     <div
       role="button"
@@ -408,7 +472,7 @@ export function NoteCard({
       className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring"
     >
       <div className="relative h-32 w-full overflow-hidden">
-        <Thumbnail note={note} />
+        <Thumbnail note={note} variant="media" highlight={highlight} />
         {selectionMode ? (
           <div className="absolute top-2 start-2">
             <SelectToggle
@@ -428,11 +492,14 @@ export function NoteCard({
         )}
       </div>
       <div className="flex min-h-[86px] flex-1 flex-col gap-1.5 p-3">
-        <p className="line-clamp-1 text-sm font-semibold">
+        <p className="line-clamp-1 text-sm font-semibold" title={note.title}>
           {renderHighlighted(titleSegments, note.title)}
         </p>
-        {snippet ? (
-          <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+        {snippet && !excerptShownInMedia ? (
+          <p
+            className="line-clamp-2 text-xs leading-5 text-muted-foreground"
+            title={snippet}
+          >
             {renderHighlighted(snippetSegments, snippet)}
           </p>
         ) : trashMode ? (
@@ -445,15 +512,16 @@ export function NoteCard({
         <TagChips note={note} />
         <div className="mt-auto flex items-center gap-2 pt-1.5 text-[11px] text-muted-foreground">
           {note.category ? (
-            <span className="flex min-w-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5">
+            <span
+              className="flex min-w-0 items-center gap-1 rounded-full bg-secondary px-2 py-0.5"
+              title={categoryName ?? undefined}
+            >
               <span
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ backgroundColor: categoryColor }}
                 aria-hidden="true"
               />
-              <span className="truncate">
-                {localizedCategoryName(note.category, locale)}
-              </span>
+              <span className="truncate">{categoryName}</span>
             </span>
           ) : null}
           {trashMode ? (

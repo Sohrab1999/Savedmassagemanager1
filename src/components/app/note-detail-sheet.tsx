@@ -55,6 +55,7 @@ import {
 } from "@/hooks/queries";
 import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { RelatedNotes } from "@/components/app/related-notes";
+import { showUndoToast } from "@/components/app/undo-toast";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/stores/app-store";
@@ -583,13 +584,14 @@ export function NoteDetailSheet() {
                   await deleteNote.mutateAsync(trashedId);
                   recordDeletion();
                   closeNote();
-                  // S5 — success toast with the 7-second «بازگردانی» window.
-                  toast.success(t("toast.noteTrashed"), {
-                    duration: 7000,
-                    action: {
-                      label: t("common.restore"),
-                      onClick: () => void restoreFromTrash(trashedId),
-                    },
+                  // S5 + UX-A6 — the stabilized undo toast: assertive live
+                  // region, fixed anchor, ≥ 8-second window, 44px undo
+                  // button (sonner was polite-only + a moving anchor). The
+                  // KPI wiring stays untouched (P6).
+                  showUndoToast({
+                    message: t("toast.noteTrashed"),
+                    undoLabel: t("common.restore"),
+                    onUndo: () => void restoreFromTrash(trashedId),
                   });
                 } catch {
                   toast.error(t("toast.error"));

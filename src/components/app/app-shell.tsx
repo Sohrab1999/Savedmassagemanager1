@@ -11,6 +11,7 @@ import { CategoriesView } from "@/components/app/views/categories-view";
 import { SettingsView } from "@/components/app/views/settings-view";
 import { QuickCapture } from "@/components/app/quick-capture";
 import { NoteDetailSheet } from "@/components/app/note-detail-sheet";
+import { UndoToastHost } from "@/components/app/undo-toast";
 import { AuthGate } from "@/components/app/auth-gate";
 import { useAuth } from "@/hooks/use-auth";
 import { realtimeStore } from "@/services/realtime";
@@ -120,6 +121,9 @@ export function AppShell() {
       {/* Global overlays */}
       <QuickCapture />
       <NoteDetailSheet />
+      {/* UX-A6 (S-7) — the stabilized undo toast host (fixed anchor above
+          the mobile bottom nav, assertive live region). */}
+      <UndoToastHost />
     </div>
   );
 }

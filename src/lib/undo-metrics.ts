@@ -10,8 +10,8 @@ const STORAGE_KEY = "savedbox.undoMetrics";
 export interface UndoMetrics {
   /** Total deletes performed (soft deletes → trash). */
   deletions: number;
-  /** How many of those were undone via the 7-second toast action or the
-   * trash view. */
+  /** How many of those were undone via the stabilized undo-toast action
+   * (UX-A6) or the trash view. */
   undos: number;
 }
 

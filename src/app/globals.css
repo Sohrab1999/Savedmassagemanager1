@@ -69,7 +69,7 @@
   --chart-2: oklch(0.78 0.14 75);
   --chart-3: oklch(0.62 0.2 15);
   --chart-4: oklch(0.62 0.21 320);
-  --chart-5: oklch(0.72 0.16 120);
+  --chart-5: oklch(0.65 0.19 41);
   --sidebar: oklch(0.985 0.004 100);
   --sidebar-foreground: oklch(0.235 0.012 155);
   --sidebar-primary: oklch(0.55 0.108 185);
@@ -104,7 +104,7 @@
   --chart-2: oklch(0.8 0.14 75);
   --chart-3: oklch(0.68 0.19 15);
   --chart-4: oklch(0.68 0.2 320);
-  --chart-5: oklch(0.76 0.16 120);
+  --chart-5: oklch(0.74 0.16 45);
   --sidebar: oklch(0.19 0.007 165);
   --sidebar-foreground: oklch(0.955 0.004 140);
   --sidebar-primary: oklch(0.74 0.115 185);
@@ -156,4 +156,16 @@
 }
 .scroll-area::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+}
+
+/* UX-A6 (S-7) — visible rescue window of the undo toast: the bar depletes
+   over exactly the toast duration (≥ 8s) so the window is seen, not guessed.
+   Direction-aware origin is applied via rtl:/ltr: origin utilities. */
+@keyframes savedbox-undo-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }

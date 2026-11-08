@@ -37,6 +37,9 @@ export const en = {
   "dashboard.subtitle": "Here is your library at a glance",
   "dashboard.quickCapture": "Quick capture",
   "dashboard.quickCaptureHint": "Save a message, link or note before you lose it",
+  // UX-A8 (S-6) — the banner gets its OWN headline (no longer a duplicate of
+  // the header CTA). The fa string is the owner's verbatim order.
+  "dashboard.captureBanner.title": "Whatever's on your mind, drop it here",
   "dashboard.stats.total": "Saved items",
   "dashboard.stats.favorites": "Favorites",
   "dashboard.stats.thisWeek": "Added this week",
@@ -86,6 +89,12 @@ export const en = {
   "library.filters.trash": "Trash",
   "library.noResults.title": "No matching items",
   "library.noResults.desc": "Try different keywords or clear some filters.",
+  // UX-A7 — friendly, distinct empty states (the inbox tone is the benchmark)
+  "library.search.empty.title": "No search results",
+  "library.search.empty.desc": "Nothing matches “{q}” — try a simpler keyword, or clear some filters.",
+  "library.category.empty.title": "This category is still empty",
+  "library.category.empty.desc": "Anything added to “{name}” will gather here.",
+  "library.search.clear": "Clear search",
   "library.activeFilters.count": "{n} active",
   "library.empty.title": "Nothing saved yet",
   "library.empty.desc": "Use quick capture to add your first item.",
@@ -192,6 +201,9 @@ export const en = {
   // N6 — related notes (deterministic co-occurrence, honestly labelled)
   "note.related.title": "Related",
   "note.related.noAi": "No AI",
+  // UX-A7 — the honest zero state is explicit and friendly, never silent
+  "note.related.empty.title": "Nothing related yet",
+  "note.related.empty.desc": "Items sharing a tag or a category show up here automatically.",
 
   "capture.title": "Quick capture",
   "capture.typeLabel": "Type",
@@ -380,6 +392,8 @@ export const fa: Record<I18nKey, string> = {
   "dashboard.subtitle": "نمای کلی کتابخانهٔ شما",
   "dashboard.quickCapture": "ثبت سریع",
   "dashboard.quickCaptureHint": "پیام، لینک یا یادداشت را پیش از فراموشی ذخیره کنید",
+  // UX-A8 (S-6) — متن متمایز بنر؛ عیناً فرمان مالک
+  "dashboard.captureBanner.title": "هرچی در ذهنت است، همین‌جا بگذار",
   "dashboard.stats.total": "موارد ذخیره‌شده",
   "dashboard.stats.favorites": "علاقه‌مندی‌ها",
   "dashboard.stats.thisWeek": "افزوده‌شده در این هفته",
@@ -429,6 +443,12 @@ export const fa: Record<I18nKey, string> = {
   "library.filters.trash": "سطل",
   "library.noResults.title": "موردی یافت نشد",
   "library.noResults.desc": "کلیدواژهٔ دیگری امتحان کنید یا فیلترها را کم کنید.",
+  // UX-A7 — حالت‌های خالی مجزا و دوستانه (لحن صندوق ورودی معیار است)
+  "library.search.empty.title": "جستجو نتیجه‌ای نداشت",
+  "library.search.empty.desc": "هیچ موردی با «{q}» مطابقت ندارد — عبارت ساده‌تری امتحان کنید یا فیلترها را کم کنید.",
+  "library.category.empty.title": "این دسته هنوز خالی است",
+  "library.category.empty.desc": "هر موردی که به «{name}» اضافه شود، همین‌جا جمع می‌شود.",
+  "library.search.clear": "پاک کردن جستجو",
   "library.activeFilters.count": "{n} فعال",
   "library.empty.title": "هنوز چیزی ذخیره نشده",
   "library.empty.desc": "با ثبت سریع، اولین مورد خود را اضافه کنید.",
@@ -535,6 +555,9 @@ export const fa: Record<I18nKey, string> = {
   // N6 — یادداشت‌های مرتبط (هم‌رخدادی قطعی، برچسب صادقانه)
   "note.related.title": "مرتبط‌ها",
   "note.related.noAi": "بدون AI",
+  // UX-A7 — صفرِ صادقانه، آشکار و دوستانه؛ هرگز خاموش نیست
+  "note.related.empty.title": "هنوز چیزی مرتبط پیدا نشد",
+  "note.related.empty.desc": "آیتم‌هایی که برچسب یا دستهٔ مشترک داشته باشند، خودبه‌خود همین‌جا می‌آیند.",
 
   "capture.title": "ثبت سریع",
   "capture.typeLabel": "نوع",

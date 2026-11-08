@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Filter,
+  FolderOpen,
   Inbox,
   LayoutGrid,
   List,
@@ -13,6 +14,7 @@ import {
   Loader2,
   Plus,
   Search,
+  SearchX,
   Star,
   Trash2,
   X,
@@ -45,7 +47,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState, ErrorState, GridSkeleton, ListSkeleton } from "@/components/app/states";
 import { NoteCard } from "@/components/app/note-card";
-import { localizedCategoryName, TYPE_META } from "@/components/app/meta";
+import { iconByName, localizedCategoryName, TYPE_META } from "@/components/app/meta";
+import { showUndoToast } from "@/components/app/undo-toast";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   useBulkNotes,
   useEmptyTrash,
@@ -111,7 +119,8 @@ export function LibraryView() {
 
   /** S6 — ONE batched write per action on both backends (demo: one Prisma
    * statement; cloud: one committed writeBatch). Bulk delete keeps the S5
-   * undo contract: a 7-second toast restores the whole batch. */
+   * undo contract: the UX-A6 stabilized undo toast (≥ 8 s, assertive, fixed
+   * anchor) restores the whole batch. */
   const runBulk = useCallback(
     (
       action: "categorize" | "archive" | "unarchive" | "delete" | "restore",
@@ -128,31 +137,30 @@ export function LibraryView() {
             if (action === "delete") {
               recordDeletion(result.updated);
               const undoIds = targetIds;
-              toast.success(
-                t("library.bulk.trashedToast", { n: countLabel }),
-                {
-                  duration: 7000,
-                  action: {
-                    label: t("common.restore"),
-                    onClick: () => {
-                      bulkNotes.mutate(
-                        { ids: undoIds, action: "restore" },
-                        {
-                          onSuccess: (restored) => {
-                            recordUndo(restored.updated);
-                            toast.success(
-                              t("library.bulk.restoredToast", {
-                                n: formatNumber(restored.updated, locale),
-                              }),
-                            );
-                          },
-                          onError: () => toast.error(t("toast.error")),
-                        },
-                      );
+              // UX-A6 (S-7) — the stabilized undo toast replaces the sonner
+              // toast: assertive live region, fixed anchor, ≥ 8 s window and
+              // a 44px undo button. KPI wiring (recordDeletion/recordUndo)
+              // is untouched (P6).
+              showUndoToast({
+                message: t("library.bulk.trashedToast", { n: countLabel }),
+                undoLabel: t("common.restore"),
+                onUndo: () => {
+                  bulkNotes.mutate(
+                    { ids: undoIds, action: "restore" },
+                    {
+                      onSuccess: (restored) => {
+                        recordUndo(restored.updated);
+                        toast.success(
+                          t("library.bulk.restoredToast", {
+                            n: formatNumber(restored.updated, locale),
+                          }),
+                        );
+                      },
+                      onError: () => toast.error(t("toast.error")),
                     },
-                  },
+                  );
                 },
-              );
+              });
             } else {
               const key =
                 action === "categorize"
@@ -304,6 +312,43 @@ export function LibraryView() {
           />
         );
       }
+      // UX-A7 — the empty sweep: each zero state names its own cause in the
+      // inbox's friendly tone, all through the ONE shared EmptyState.
+      // Priority: trash > search echo > category echo > generic filters >
+      // the default capture invitation.
+      if (filters.q) {
+        return (
+          <EmptyState
+            icon={SearchX}
+            title={t("library.search.empty.title")}
+            description={t("library.search.empty.desc", { q: filters.q })}
+            action={
+              <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                {t("library.clearFilters")}
+              </Button>
+            }
+          />
+        );
+      }
+      if (filters.categoryId !== "all" && filters.categoryId !== "none") {
+        const CategoryIcon = activeCategory
+          ? iconByName(activeCategory.icon)
+          : FolderOpen;
+        return (
+          <EmptyState
+            icon={CategoryIcon}
+            title={t("library.category.empty.title")}
+            description={t("library.category.empty.desc", {
+              name: activeCategoryLabel,
+            })}
+            action={
+              <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                {t("library.clearFilters")}
+              </Button>
+            }
+          />
+        );
+      }
       return isDefaultFilters ? (
         <EmptyState
           title={t("library.empty.title")}
@@ -408,14 +453,20 @@ export function LibraryView() {
           className="h-10 ps-9"
         />
         {searchInput ? (
-          <button
-            type="button"
-            aria-label={t("common.clearAll")}
-            onClick={() => setSearchInput("")}
-            className="absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground end-2"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
+          /* UX-A9 — icon-only buttons carry aria-label AND a visible tooltip. */
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("library.search.clear")}
+                onClick={() => setSearchInput("")}
+                className="absolute top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground end-2"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("library.search.clear")}</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
 
@@ -580,54 +631,72 @@ export function LibraryView() {
           </SelectContent>
         </Select>
 
-        {/* Layout toggle */}
+        {/* Layout toggle — UX-A9: both icon-only toggles have aria-label +
+            tooltip (fa/en via the dictionary). */}
         <div className="flex shrink-0 items-center rounded-full border p-0.5">
-          <button
-            type="button"
-            aria-label={t("library.layout.grid")}
-            aria-pressed={filters.layout === "grid"}
-            onClick={() => setFilters({ layout: "grid" })}
-            className={cn(
-              "flex size-7 items-center justify-center rounded-full transition-colors",
-              filters.layout === "grid"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <LayoutGrid className="size-3.5" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            aria-label={t("library.layout.list")}
-            aria-pressed={filters.layout === "list"}
-            onClick={() => setFilters({ layout: "list" })}
-            className={cn(
-              "flex size-7 items-center justify-center rounded-full transition-colors",
-              filters.layout === "list"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground",
-            )}
-          >
-            <List className="size-3.5" aria-hidden="true" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("library.layout.grid")}
+                aria-pressed={filters.layout === "grid"}
+                onClick={() => setFilters({ layout: "grid" })}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-full transition-colors",
+                  filters.layout === "grid"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground",
+                )}
+              >
+                <LayoutGrid className="size-3.5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("library.layout.grid")}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label={t("library.layout.list")}
+                aria-pressed={filters.layout === "list"}
+                onClick={() => setFilters({ layout: "list" })}
+                className={cn(
+                  "flex size-7 items-center justify-center rounded-full transition-colors",
+                  filters.layout === "list"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground",
+                )}
+              >
+                <List className="size-3.5" aria-hidden="true" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{t("library.layout.list")}</TooltipContent>
+          </Tooltip>
         </div>
 
-        {/* S6 — bulk-selection toggle (stable end of the bar, like sort/layout) */}
-        <button
-          type="button"
-          aria-label={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
-          aria-pressed={bulkSelectMode}
-          title={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
-          onClick={() => (bulkSelectMode ? exitSelection() : setBulkSelectMode(true))}
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors",
-            bulkSelectMode
-              ? "border-primary bg-primary text-primary-foreground"
-              : "bg-background text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <ListChecks className="size-4" aria-hidden="true" />
-        </button>
+        {/* S6 — bulk-selection toggle (stable end of the bar, like sort/layout).
+            UX-A9 — Radix tooltip replaces the bare native title. */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              aria-label={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+              aria-pressed={bulkSelectMode}
+              onClick={() => (bulkSelectMode ? exitSelection() : setBulkSelectMode(true))}
+              className={cn(
+                "flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors",
+                bulkSelectMode
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <ListChecks className="size-4" aria-hidden="true" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Active filters bar (QE5): one removable chip per active filter,
