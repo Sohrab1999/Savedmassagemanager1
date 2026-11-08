@@ -1,0 +1,941 @@
+TELEVAULT — GATE 2B.1A-R4: FINAL PRE-MIGRATION AUDIT REPORT
+Mode: Strictly Read-Only (Zero files modified, zero DDL executed, zero database objects created/altered/deleted, zero DML/privilege statements executed, zero packages installed)
+Target Infrastructure: Cloud SQL for PostgreSQL 18.6 (ai-studio-3b52a41f in symbolic-campus-j5xj8, us-west1, cloud_sql_development_database) + Cloud Firestore (ai-studio-3b52a41f-a3f5-4e4b-a18f-c7f16a37f73c)
+1. Files Inspected
+/firestore.rules (lines 1–199): Verified /notes/{noteId} allow create, allow update, isValidId(), and isValidSavedNote().
+/firebase-blueprint.json (lines 1–298): Verified SavedNote schema definition.
+/src/domain/types.ts (lines 1–121), /src/domain/validation.ts (lines 1–207), /src/services/repository.ts (lines 1–693): Verified scopeEntityIdForUser(), generateSafeId(), createFirestoreNote(), and updateFirestoreNote().
+/src/App.tsx (lines 240–300, 515–560) & /src/components/QuickCaptureModal.tsx (lines 65–120): Verified all client note creation call sites.
+/src/server/telegramWebhook.ts (lines 1–665): Verified validateTelegramUpdate().
+2. Database Metadata Inspected (Live Read-Only Queries on PostgreSQL 18.6)
+Executed inside BEGIN READ ONLY; ... COMMIT; transactions on cloud_sql_development_database:
+pg_catalog.pg_database + aclexplode(COALESCE(datacl, acldefault('d', datdba))): Verified database owner (cloudsqlsuperuser) and direct PUBLIC (grantee = 0::oid) ACL entries (CONNECT, TEMPORARY).
+pg_catalog.pg_namespace + aclexplode(COALESCE(nspacl, acldefault('n', nspowner))): Verified public schema owner (pg_database_owner) and direct PUBLIC ACL entries (USAGE only; CREATE is false).
+pg_catalog.pg_roles & pg_catalog.pg_auth_members: Confirmed SELECT COUNT(*) FROM pg_roles WHERE rolname = 'public' is 0 (PUBLIC is pseudo-role OID 0, not a row in pg_roles), and verified ai_studio_app_user (SQL_USER) and ai_studio_admin (SQL_ADMIN_USER) role attributes and recursive memberships.
+pg_catalog.pg_default_acl + aclexplode(defaclacl): Verified zero custom default ACL grants exist ([]).
+pg_catalog.pg_class: Verified zero user tables/indexes/sequences currently exist in schema public (q5RowCount: 0).
+3. Findings & Architectural Resolutions for Issues 1–5
+ISSUE 1 — Telegram Provenance: Correcting the Trust Claim
+1.1 Explicit Taxonomy of the Four Concepts
+Concept	Definition	Security Property
+1. Deterministic Source Identity	Canonical string tuple tgv1:<firebase_uid>:<telegram_user_id>:<telegram_chat_id>:<telegram_message_id> constructed from lossless base-10 Telegram ID strings.	Uniquely identifies a specific Telegram message for a linked user without JavaScript Number precision loss.
+2. Collision-Resistant Document ID	firestore_note_id = "${userPrefix}_tgv1_${telegramMessageId}_${sha256Hex(sourceIdentity).slice(0, 40)}" (68..86 ASCII chars).	Maps a variable-length source identity into a fixed-bound (<= 86 chars 
+) Firestore document ID with 
+ collision resistance across users/chats/messages. Note: An unkeyed SHA-256 hash is a public digest, NOT a cryptographic MAC.
+3. Application-Level Provenance Convention	Reserving the _tgv1_ document ID infix exclusively for importStagedNoteToFirestore() while blocking _tgv1_ in createFirestoreNote() and generateSafeId('note').	Prevents accidental collisions or overwrites between normal UI actions (Quick Capture, sample sync, retry loops) within the cooperative client application.
+4. Cryptographically Authenticated Provenance	Proof enforced by a trusted write boundary that a Firestore document could only have been created from an authentic Telegram webhook.	Cannot be achieved inside /notes/{noteId} under client-mediated Firestore writes, because the browser holds the user's Firebase Web SDK credentials.
+1.2 Inspection of /firestore.rules: Can a Client Directly Create a _tgv1_ Document?
+Verified Fact from /firestore.rules (lines 23–25, 82–114, 175–178):
+allow create on /notes/{noteId} checks isSignedIn() && isValidId(noteId) && isValidSavedNote(incoming(), noteId) && incoming().createdAt == request.time && incoming().updatedAt == request.time.
+isValidId(noteId) checks only id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$').
+Conclusion: Under the existing /firestore.rules, any authenticated user (request.auth.uid == userId) running custom JavaScript in their browser DevTools can directly call setDoc(doc(db, 'notes', '<uidPrefix>_tgv1_...'), validPayload) to create a document with a _tgv1_ ID in their own user library. Therefore, an existing _tgv1_ document in Firestore is an application-level provenance convention, not cryptographic proof against a malicious user modifying their own library.
+1.3 Evaluation of Architecture A vs. Architecture B
+Dimension	Architecture A: Client-Mediated Firestore Writes (Honest-Client Self-Library Model)	Architecture B: Trusted Backend Firestore Writes (Disallowing _tgv1_ Client Creates in firestore.rules)
+How it works	Express backend stages normalized notes in Cloud SQL (telegram_staged_notes). Authenticated browser claims leased rows (POST /api/telegram/staged/claim), writes to /notes/{firestore_note_id} via Firebase Web SDK, and acknowledges (POST /api/telegram/staged/ack).	Express backend writes directly to Firestore (via Firebase Admin SDK or REST API) and firestore.rules blocks client create on IDs matching _tgv1_.
+IAM & Runtime Feasibility	Works in the current environment (PASS): Zero cross-project Firestore IAM access required by the Cloud Run runtime service account (ais-sandbox@...).	Blocked in the current environment (FAIL): As proven in the Gate 2 IAM audits, ais-sandbox@ais-europe-west2-7e5e616ba4754.iam.gserviceaccount.com receives HTTP 403 PERMISSION_DENIED on project symbolic-campus-j5xj8 and has no setIamPolicy permission, unless the user manually provisions and injects a long-lived service account private key (explicitly disallowed by project security constraints) or forwards the user's short-lived Firebase ID token to the Firestore REST API during a synchronous client request.
+Security & Blast Radius	Cross-tenant isolation is 100% enforced by firestore.rules (userId == request.auth.uid) and backend JWT verification (firebase_uid). A user tampering with their own browser client can only pre-create or skip a note in their own personal library—never another user's library.	Prevents a user from spoofing a _tgv1_ document ID inside their own personal library, but requires either blocked IAM roles or changing firestore.rules.
+Operational & Rule Impact	Zero changes required to /firestore.rules.	Requires modifying and redeploying /firestore.rules and either cross-project IAM grants or backend Firestore REST proxying.
+1.4 Concrete Recommendation
+Recommend Architecture A (Client-Mediated Firestore Writes with an Explicitly Documented Honest-Client Self-Library Trust Model):
+It is 100% compatible with the verified IAM boundaries of the AI Studio Cloud Run runtime and requires zero changes to /firestore.rules.
+Cross-user security is strictly enforced by cryptographic JWT verification on the backend and request.auth.uid == userId in firestore.rules.
+Within the user's own library, deterministic IDs (${userPrefix}_tgv1_${telegramMessageId}_${sha256_40hex}), blocking _tgv1_ in createFirestoreNote(), and read-first never-overwrite behavior in importStagedNoteToFirestore() guarantee zero accidental collisions and zero loss of user edits across retries.
+ISSUE 2 — Corrected PostgreSQL PUBLIC & Runtime Privilege Verification
+2.1 Why PUBLIC Requires Catalog ACL Expansion (aclexplode)
+In PostgreSQL, PUBLIC is not an ordinary role in pg_catalog.pg_roles (verified live: SELECT COUNT(*) FROM pg_catalog.pg_roles WHERE rolname = 'public' returns 0). In internal aclitem[] arrays (datacl, nspacl, relacl, defaclacl), grants to PUBLIC are stored with grantee = 0::oid.
+Furthermore, calling has_database_privilege(current_user, ...) or has_table_privilege(current_user, ...) reports effective privileges (combining direct grants to current_user, inherited role grants such as pg_read_all_data / pg_write_all_data, and grants to PUBLIC), whereas inspecting aclexplode(COALESCE(acl_col, acldefault(...))) inspects direct ACL entries (grantee = 0::oid for PUBLIC, grantee = current_user::regrole::oid for direct user grants).
+Both effective privilege checks and direct catalog ACL inspections are required and provided in Section 4 below.
+ISSUE 3 — Expired Lease Recovery & Dead-Letter Correctness
+3.1 Complete State Machine for telegram_staged_notes
+Every row in public.telegram_staged_notes is in one of three states (state IN ('staged', 'claimed', 'failed')):
+State	delivery_attempts	claim_lease_id	lease_expires_at	failed_at	last_error_code	Meaning
+'staged' (Initial)	0	NULL	NULL	NULL	NULL	Newly ingested from webhook; ready for first claim.
+'staged' (Recovered after expired lease 1..4)	1..4	NULL	NULL	NULL	'lease_expired_requeued' (or transient code)	Lease 1..4 expired without ack; recovered by Step E.1b and ready for next claim.
+'claimed' (Active Lease)	1..5	'lease_<32hex>'	NOT NULL (now + 60s)	NULL	NULL or prior transient code	Actively leased to a client claim batch; increments delivery_attempts by +1 on claim.
+'failed' (Dead-Letter)	1..5	NULL	NULL	NOT NULL	NOT NULL (1..64 chars)	Reached 5 expired attempts OR client reported permanent failure; held for 14 days for inspection/retry/dismissal.
+(Full transactional SQL for all lease, recovery, dead-letter, partial ack, retry, and dismissal operations is provided in Section 6 below.)
+4. Exact Corrected Read-Only Privilege Verification Queries (Executed & Verified on PostgreSQL 18.6)
+All 5 queries below take zero external parameters, run inside a BEGIN READ ONLY; ... COMMIT; block as SQL_USER (ai_studio_app_user), and distinguish effective privileges (eff_*) from direct ACL entries (acl_*):
+Query 1 — Database Ownership, Effective SQL_USER Privileges, & Direct PUBLIC (0::oid) ACL Entries
+SQL
+WITH db_info AS (
+    SELECT
+        d.oid AS db_oid,
+        d.datname AS db_name,
+        d.datdba AS owner_oid,
+        pg_catalog.pg_get_userbyid(d.datdba) AS db_owner,
+        COALESCE(d.datacl, acldefault('d', d.datdba)) AS effective_acl
+    FROM pg_catalog.pg_database d
+    WHERE d.datname = current_database()
+),
+public_db_acl AS (
+    SELECT acl.privilege_type
+    FROM db_info,
+    LATERAL aclexplode(db_info.effective_acl) AS acl
+    WHERE acl.grantee = 0::oid
+),
+direct_user_db_acl AS (
+    SELECT acl.privilege_type
+    FROM db_info,
+    LATERAL aclexplode(db_info.effective_acl) AS acl
+    WHERE acl.grantee = current_user::regrole::oid
+)
+SELECT
+    db_info.db_name,
+    db_info.db_owner,
+    has_database_privilege(current_user, db_info.db_name, 'CONNECT') AS eff_user_connect,
+    has_database_privilege(current_user, db_info.db_name, 'CREATE') AS eff_user_create,
+    has_database_privilege(current_user, db_info.db_name, 'TEMP') AS eff_user_temp,
+    EXISTS (SELECT 1 FROM public_db_acl WHERE privilege_type = 'CONNECT') AS acl_public_connect,
+    EXISTS (SELECT 1 FROM public_db_acl WHERE privilege_type = 'CREATE') AS acl_public_create,
+    EXISTS (SELECT 1 FROM public_db_acl WHERE privilege_type = 'TEMPORARY') AS acl_public_temp,
+    EXISTS (SELECT 1 FROM direct_user_db_acl WHERE privilege_type = 'CREATE') AS acl_direct_user_create,
+    EXISTS (SELECT 1 FROM direct_user_db_acl WHERE privilege_type = 'TEMPORARY') AS acl_direct_user_temp
+FROM db_info;
+Expected Post-Gate-2B.1B Result: eff_user_connect: true; all five eff_user_create, eff_user_temp, acl_public_create, acl_public_temp, acl_direct_user_create, and acl_direct_user_temp MUST be false.
+Query 2 — Schema Ownership, Effective SQL_USER Privileges, & Direct PUBLIC (0::oid) ACL Entries
+SQL
+WITH schema_info AS (
+    SELECT
+        n.oid AS schema_oid,
+        n.nspname AS schema_name,
+        n.nspowner AS owner_oid,
+        pg_catalog.pg_get_userbyid(n.nspowner) AS schema_owner,
+        COALESCE(n.nspacl, acldefault('n', n.nspowner)) AS effective_acl
+    FROM pg_catalog.pg_namespace n
+    WHERE n.nspname = 'public'
+),
+public_schema_acl AS (
+    SELECT acl.privilege_type
+    FROM schema_info,
+    LATERAL aclexplode(schema_info.effective_acl) AS acl
+    WHERE acl.grantee = 0::oid
+),
+direct_user_schema_acl AS (
+    SELECT acl.privilege_type
+    FROM schema_info,
+    LATERAL aclexplode(schema_info.effective_acl) AS acl
+    WHERE acl.grantee = current_user::regrole::oid
+)
+SELECT
+    schema_info.schema_name,
+    schema_info.schema_owner,
+    has_schema_privilege(current_user, schema_info.schema_name, 'USAGE') AS eff_user_usage,
+    has_schema_privilege(current_user, schema_info.schema_name, 'CREATE') AS eff_user_create,
+    EXISTS (SELECT 1 FROM public_schema_acl WHERE privilege_type = 'USAGE') AS acl_public_usage,
+    EXISTS (SELECT 1 FROM public_schema_acl WHERE privilege_type = 'CREATE') AS acl_public_create,
+    EXISTS (SELECT 1 FROM direct_user_schema_acl WHERE privilege_type = 'CREATE') AS acl_direct_user_create
+FROM schema_info;
+Expected Post-Gate-2B.1B Result: eff_user_usage: true; eff_user_create: false, acl_public_create: false, acl_direct_user_create: false (proving SQL_USER cannot create tables, views, functions, procedures, types, or sequences in public).
+Query 3 — Role Attributes, Recursive INHERIT / SET ROLE Paths, & Owner Non-Membership
+SQL
+WITH RECURSIVE role_tree AS (
+    SELECT
+        am.member AS member_oid,
+        am.roleid AS granted_oid,
+        am.admin_option,
+        am.inherit_option,
+        am.set_option,
+        1 AS depth
+    FROM pg_catalog.pg_auth_members am
+    WHERE am.member = current_user::regrole
+    UNION ALL
+    SELECT
+        am.member,
+        am.roleid,
+        am.admin_option,
+        am.inherit_option,
+        am.set_option,
+        rt.depth + 1
+    FROM pg_catalog.pg_auth_members am
+    JOIN role_tree rt ON am.member = rt.granted_oid
+)
+SELECT
+    r.rolname AS current_role_name,
+    r.rolsuper,
+    r.rolinherit,
+    r.rolcreaterole,
+    r.rolcreatedb,
+    r.rolbypassrls,
+    pg_has_role(current_user, (SELECT datdba FROM pg_catalog.pg_database WHERE datname = current_database()), 'USAGE') AS can_use_db_owner,
+    pg_has_role(current_user, (SELECT datdba FROM pg_catalog.pg_database WHERE datname = current_database()), 'MEMBER') AS can_set_role_db_owner,
+    pg_has_role(current_user, (SELECT nspowner FROM pg_catalog.pg_namespace WHERE nspname = 'public'), 'USAGE') AS can_use_schema_owner,
+    pg_has_role(current_user, (SELECT nspowner FROM pg_catalog.pg_namespace WHERE nspname = 'public'), 'MEMBER') AS can_set_role_schema_owner,
+    COALESCE(
+        (SELECT jsonb_agg(jsonb_build_object(
+            'member', rt.member_oid::regrole::text,
+            'granted', rt.granted_oid::regrole::text,
+            'inherit', rt.inherit_option,
+            'set_role', rt.set_option,
+            'admin', rt.admin_option,
+            'depth', rt.depth
+        ) ORDER BY rt.depth, rt.granted_oid::regrole::text) FROM role_tree rt),
+        '[]'::jsonb
+    ) AS role_memberships
+FROM pg_catalog.pg_roles r
+WHERE r.rolname = current_user;
+Expected Post-Gate-2B.1B Result: rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, can_use_db_owner, can_set_role_db_owner, can_use_schema_owner, can_set_role_schema_owner MUST all be false.
+Query 4 — Table, Index, & Sequence Ownership, Effective Privileges, & Direct ACL Inspection
+SQL
+WITH obj_info AS (
+    SELECT
+        c.oid AS obj_oid,
+        n.nspname AS schema_name,
+        c.relname AS object_name,
+        c.relkind AS object_kind,
+        c.relowner AS owner_oid,
+        pg_catalog.pg_get_userbyid(c.relowner) AS object_owner,
+        COALESCE(
+            c.relacl,
+            acldefault(
+                CASE WHEN c.relkind = 'S' THEN 's'::"char" ELSE 'r'::"char" END,
+                c.relowner
+            )
+        ) AS effective_acl
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'i')
+)
+SELECT
+    oi.object_name,
+    oi.object_kind,
+    oi.object_owner,
+    pg_has_role(current_user, oi.owner_oid, 'USAGE') AS eff_user_is_owner,
+    pg_has_role(current_user, oi.owner_oid, 'MEMBER') AS eff_user_can_set_role_owner,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'SELECT') ELSE NULL END AS eff_select,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'INSERT') ELSE NULL END AS eff_insert,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'UPDATE') ELSE NULL END AS eff_update,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'DELETE') ELSE NULL END AS eff_delete,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'TRUNCATE') ELSE NULL END AS eff_truncate,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'REFERENCES') ELSE NULL END AS eff_references,
+    CASE WHEN oi.object_kind IN ('r', 'p', 'v', 'm') THEN has_table_privilege(current_user, oi.obj_oid, 'TRIGGER') ELSE NULL END AS eff_trigger,
+    COALESCE(
+        (SELECT jsonb_agg(acl.privilege_type ORDER BY acl.privilege_type)
+         FROM aclexplode(oi.effective_acl) AS acl
+         WHERE acl.grantee = 0::oid),
+        '[]'::jsonb
+    ) AS acl_public_privileges,
+    COALESCE(
+        (SELECT jsonb_agg(acl.privilege_type ORDER BY acl.privilege_type)
+         FROM aclexplode(oi.effective_acl) AS acl
+         WHERE acl.grantee = current_user::regrole::oid),
+        '[]'::jsonb
+    ) AS acl_direct_user_privileges
+FROM obj_info oi
+ORDER BY oi.object_kind, oi.object_name;
+Expected Post-Gate-2B.1B Result:
+For all 4 tables (object_kind = 'r') and all indexes (object_kind = 'i'): object_owner = 'ai_studio_admin', eff_user_is_owner = false, eff_user_can_set_role_owner = false (proving SQL_USER cannot ALTER or DROP any table or index).
+For all 4 tables: eff_select = true, eff_insert = true, eff_update = true, eff_delete = true; eff_truncate = false, eff_references = false, eff_trigger = false; acl_public_privileges = []; acl_direct_user_privileges = ["DELETE", "INSERT", "SELECT", "UPDATE"].
+Query 5 — Default Privileges (pg_default_acl) Inspection
+SQL
+SELECT
+    pg_catalog.pg_get_userbyid(d.defaclrole) AS defacl_owner,
+    COALESCE(n.nspname, '<global>') AS schema_name,
+    d.defaclobjtype AS obj_type,
+    CASE WHEN acl.grantee = 0::oid THEN 'PUBLIC' ELSE pg_catalog.pg_get_userbyid(acl.grantee) END AS grantee,
+    acl.privilege_type,
+    acl.is_grantable
+FROM pg_catalog.pg_default_acl d
+LEFT JOIN pg_catalog.pg_namespace n ON n.oid = d.defaclnamespace
+CROSS JOIN LATERAL aclexplode(d.defaclacl) AS acl
+ORDER BY defacl_owner, schema_name, obj_type, grantee, privilege_type;
+5. Complete Proposed PostgreSQL 18.6 Migration Script (NOT EXECUTED)
+Execution Role: SQL_ADMIN_USER (ai_studio_admin) only.
+Expected Object Owner: All 4 tables and their indexes are owned by ai_studio_admin.
+SQL_USER (ai_studio_app_user) Responsibility: Runtime DML (SELECT, INSERT, UPDATE, DELETE) only; zero DDL or TEMP privileges.
+SQL
+-- =============================================================================
+-- TELEVAULT — GATE 2B.1B MIGRATION SCRIPT (PostgreSQL 18.6)
+-- STATUS IN GATE 2B.1A-R4: PROPOSED FOR REVIEW ONLY — NOT EXECUTED
+-- EXECUTOR: SQL_ADMIN_USER (ai_studio_admin)
+-- =============================================================================
+
+BEGIN;
+
+-- -----------------------------------------------------------------------------
+-- STEP 1: Revoke default PUBLIC and runtime user TEMPORARY privilege on database
+-- (Status: NOT EXECUTED in Gate 2B.1A-R4)
+-- -----------------------------------------------------------------------------
+REVOKE TEMPORARY ON DATABASE cloud_sql_development_database FROM PUBLIC, ai_studio_app_user;
+
+-- -----------------------------------------------------------------------------
+-- STEP 2: Create Parent Table 1 — public.telegram_account_links
+-- Must be created FIRST because telegram_staged_notes references
+-- (firebase_uid, telegram_user_id) via uq_telegram_account_links_uid_tg_pair.
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.telegram_account_links (
+    firebase_uid            TEXT        PRIMARY KEY,
+    telegram_user_id        TEXT        NOT NULL,
+    telegram_chat_id        TEXT        NOT NULL,
+    telegram_username       TEXT        NULL,
+    telegram_first_name     TEXT        NULL,
+    linked_via_update_id    BIGINT      NOT NULL,
+    linked_at               TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+
+    CONSTRAINT uq_telegram_account_links_tg_user
+        UNIQUE (telegram_user_id),
+
+    CONSTRAINT uq_telegram_account_links_uid_tg_pair
+        UNIQUE (firebase_uid, telegram_user_id),
+
+    CONSTRAINT chk_link_firebase_uid_format
+        CHECK (
+            char_length(firebase_uid) BETWEEN 1 AND 128
+            AND firebase_uid ~ '^[a-zA-Z0-9_\-]+$'
+        ),
+
+    CONSTRAINT chk_link_telegram_user_id_digits
+        CHECK (telegram_user_id ~ '^[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_link_telegram_chat_id_digits
+        CHECK (telegram_chat_id ~ '^[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_link_private_chat_equals_user
+        CHECK (telegram_chat_id = telegram_user_id),
+
+    CONSTRAINT chk_link_telegram_username_bounds
+        CHECK (
+            telegram_username IS NULL
+            OR (
+                char_length(btrim(telegram_username)) >= 1
+                AND char_length(telegram_username) <= 64
+            )
+        ),
+
+    CONSTRAINT chk_link_telegram_first_name_bounds
+        CHECK (
+            telegram_first_name IS NULL
+            OR (
+                char_length(btrim(telegram_first_name)) >= 1
+                AND char_length(telegram_first_name) <= 128
+            )
+        ),
+
+    CONSTRAINT chk_link_update_id_non_negative
+        CHECK (linked_via_update_id >= 0)
+);
+
+-- -----------------------------------------------------------------------------
+-- STEP 3: Create Table 2 — public.telegram_link_challenges
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.telegram_link_challenges (
+    challenge_id                TEXT        PRIMARY KEY,
+    token_sha256_hex            CHAR(64)    NOT NULL,
+    firebase_uid                TEXT        NOT NULL,
+    status                      TEXT        NOT NULL DEFAULT 'pending',
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    expires_at                  TIMESTAMPTZ NOT NULL,
+    consumed_at                 TIMESTAMPTZ NULL,
+    consumed_by_tg_user_id      TEXT        NULL,
+    consumed_by_update_id       BIGINT      NULL,
+
+    CONSTRAINT uq_telegram_link_challenges_token_hash
+        UNIQUE (token_sha256_hex),
+
+    CONSTRAINT chk_challenge_id_format
+        CHECK (
+            char_length(challenge_id) BETWEEN 1 AND 64
+            AND challenge_id ~ '^[a-zA-Z0-9_\-]+$'
+        ),
+
+    CONSTRAINT chk_challenge_token_sha256_hex
+        CHECK (token_sha256_hex ~ '^[0-9a-f]{64}$'),
+
+    CONSTRAINT chk_challenge_firebase_uid_format
+        CHECK (
+            char_length(firebase_uid) BETWEEN 1 AND 128
+            AND firebase_uid ~ '^[a-zA-Z0-9_\-]+$'
+        ),
+
+    CONSTRAINT chk_challenge_status
+        CHECK (status IN ('pending', 'consumed', 'revoked')),
+
+    CONSTRAINT chk_challenge_ttl_window
+        CHECK (
+            expires_at > created_at
+            AND expires_at <= created_at + INTERVAL '10 minutes 5 seconds'
+        ),
+
+    CONSTRAINT chk_challenge_consumed_tg_user_digits
+        CHECK (
+            consumed_by_tg_user_id IS NULL
+            OR consumed_by_tg_user_id ~ '^[1-9][0-9]{0,19}$'
+        ),
+
+    CONSTRAINT chk_challenge_consumed_invariants
+        CHECK (
+            (
+                status = 'consumed'
+                AND consumed_at IS NOT NULL
+                AND consumed_by_tg_user_id IS NOT NULL
+                AND consumed_by_update_id IS NOT NULL
+                AND consumed_by_update_id >= 0
+            )
+            OR
+            (
+                status IN ('pending', 'revoked')
+                AND consumed_at IS NULL
+                AND consumed_by_tg_user_id IS NULL
+                AND consumed_by_update_id IS NULL
+            )
+        )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_idx_telegram_link_challenges_one_pending_per_uid
+    ON public.telegram_link_challenges (firebase_uid)
+    WHERE status = 'pending';
+
+CREATE INDEX IF NOT EXISTS idx_telegram_link_challenges_expires_at
+    ON public.telegram_link_challenges (expires_at);
+
+-- -----------------------------------------------------------------------------
+-- STEP 4: Create Table 3 — public.telegram_processed_updates
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.telegram_processed_updates (
+    update_id           BIGINT      PRIMARY KEY,
+    telegram_user_id    TEXT        NULL,
+    telegram_chat_id    TEXT        NULL,
+    message_id          BIGINT      NULL,
+    outcome             TEXT        NOT NULL,
+    processed_at        TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    expires_at          TIMESTAMPTZ NOT NULL DEFAULT (clock_timestamp() + INTERVAL '7 days'),
+
+    CONSTRAINT chk_processed_update_id_non_negative
+        CHECK (update_id >= 0),
+
+    CONSTRAINT chk_processed_tg_user_digits
+        CHECK (telegram_user_id IS NULL OR telegram_user_id ~ '^[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_processed_tg_chat_digits
+        CHECK (telegram_chat_id IS NULL OR telegram_chat_id ~ '^-?[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_processed_message_id_positive
+        CHECK (message_id IS NULL OR message_id > 0),
+
+    CONSTRAINT chk_processed_outcome_bounds
+        CHECK (char_length(btrim(outcome)) >= 1 AND char_length(outcome) <= 64)
+);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_processed_updates_expires_at
+    ON public.telegram_processed_updates (expires_at);
+
+-- -----------------------------------------------------------------------------
+-- STEP 5: Create Child Table 4 — public.telegram_staged_notes
+-- References public.telegram_account_links (firebase_uid, telegram_user_id)
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.telegram_staged_notes (
+    firestore_note_id       TEXT        PRIMARY KEY,
+    firebase_uid            TEXT        NOT NULL,
+    telegram_user_id        TEXT        NOT NULL,
+    telegram_chat_id        TEXT        NOT NULL,
+    telegram_message_id     BIGINT      NOT NULL,
+    source_update_id        BIGINT      NOT NULL,
+
+    -- Normalized SavedNote fields
+    title                   TEXT        NOT NULL,
+    content                 TEXT        NOT NULL,
+    description             TEXT        NOT NULL DEFAULT '',
+    content_type            TEXT        NOT NULL,
+    category_id             TEXT        NOT NULL,
+    tags_json               JSONB       NOT NULL DEFAULT '[]'::jsonb,
+    source_name             TEXT        NOT NULL,
+    source_type             TEXT        NOT NULL,
+    source_url              TEXT        NULL,
+    file_name               TEXT        NULL,
+    file_size               TEXT        NULL,
+    is_favorite             BOOLEAN     NOT NULL DEFAULT FALSE,
+    is_archived             BOOLEAN     NOT NULL DEFAULT FALSE,
+
+    -- Staging lifecycle, lease, & dead-letter recovery state
+    state                   TEXT        NOT NULL DEFAULT 'staged',
+    claim_lease_id          TEXT        NULL,
+    lease_expires_at        TIMESTAMPTZ NULL,
+    delivery_attempts       INTEGER     NOT NULL DEFAULT 0,
+    last_error_code         TEXT        NULL,
+    failed_at               TIMESTAMPTZ NULL,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    expires_at              TIMESTAMPTZ NOT NULL DEFAULT (clock_timestamp() + INTERVAL '7 days'),
+
+    CONSTRAINT uq_telegram_staged_notes_chat_msg
+        UNIQUE (telegram_chat_id, telegram_message_id),
+
+    CONSTRAINT uq_telegram_staged_notes_update_id
+        UNIQUE (source_update_id),
+
+    CONSTRAINT fk_telegram_staged_notes_account_link
+        FOREIGN KEY (firebase_uid, telegram_user_id)
+        REFERENCES public.telegram_account_links (firebase_uid, telegram_user_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_staged_firestore_note_id_format
+        CHECK (
+            char_length(firestore_note_id) BETWEEN 1 AND 128
+            AND firestore_note_id ~ '^[a-zA-Z0-9_\-]+_tgv1_[1-9][0-9]{0,19}_[0-9a-f]{40}$'
+        ),
+
+    CONSTRAINT chk_staged_firebase_uid_format
+        CHECK (
+            char_length(firebase_uid) BETWEEN 1 AND 128
+            AND firebase_uid ~ '^[a-zA-Z0-9_\-]+$'
+        ),
+
+    CONSTRAINT chk_staged_telegram_user_id_digits
+        CHECK (telegram_user_id ~ '^[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_staged_telegram_chat_id_digits
+        CHECK (telegram_chat_id ~ '^[1-9][0-9]{0,19}$'),
+
+    CONSTRAINT chk_staged_private_chat_equals_user
+        CHECK (telegram_chat_id = telegram_user_id),
+
+    CONSTRAINT chk_staged_telegram_message_id_positive
+        CHECK (telegram_message_id > 0),
+
+    CONSTRAINT chk_staged_source_update_id_non_negative
+        CHECK (source_update_id >= 0),
+
+    CONSTRAINT chk_staged_title_bounds
+        CHECK (
+            char_length(btrim(title)) >= 1
+            AND char_length(title) <= 200
+        ),
+
+    CONSTRAINT chk_staged_content_bounds
+        CHECK (
+            char_length(btrim(content)) >= 1
+            AND char_length(content) <= 10000
+        ),
+
+    CONSTRAINT chk_staged_description_bounds
+        CHECK (char_length(description) <= 5000),
+
+    CONSTRAINT chk_staged_content_type
+        CHECK (content_type IN ('text', 'link', 'image', 'video', 'file')),
+
+    CONSTRAINT chk_staged_category_id_format
+        CHECK (
+            char_length(category_id) BETWEEN 1 AND 128
+            AND category_id ~ '^[a-zA-Z0-9_\-]+$'
+        ),
+
+    CONSTRAINT chk_staged_tags_array
+        CHECK (
+            jsonb_typeof(tags_json) = 'array'
+            AND jsonb_array_length(tags_json) <= 10
+            AND NOT jsonb_path_exists(
+                tags_json,
+                'strict $[*] ? (@.type() != "string" || !(@ like_regex "^.{1,50}$" flag "s") || !(@ like_regex "\\S"))'
+            )
+        ),
+
+    CONSTRAINT chk_staged_source_name_bounds
+        CHECK (
+            char_length(btrim(source_name)) >= 1
+            AND char_length(source_name) <= 120
+        ),
+
+    CONSTRAINT chk_staged_source_type
+        CHECK (source_type IN ('channel', 'group', 'direct', 'personal', 'bot')),
+
+    CONSTRAINT chk_staged_source_url_bounds
+        CHECK (
+            source_url IS NULL
+            OR (
+                char_length(btrim(source_url)) >= 1
+                AND char_length(source_url) <= 2048
+                AND source_url ~ '^https?://'
+            )
+        ),
+
+    CONSTRAINT chk_staged_file_name_bounds
+        CHECK (
+            file_name IS NULL
+            OR (
+                char_length(btrim(file_name)) >= 1
+                AND char_length(file_name) <= 255
+            )
+        ),
+
+    CONSTRAINT chk_staged_file_size_bounds
+        CHECK (
+            file_size IS NULL
+            OR (
+                char_length(btrim(file_size)) >= 1
+                AND char_length(file_size) <= 50
+            )
+        ),
+
+    CONSTRAINT chk_staged_state
+        CHECK (state IN ('staged', 'claimed', 'failed')),
+
+    CONSTRAINT chk_staged_last_error_code_bounds
+        CHECK (
+            last_error_code IS NULL
+            OR (
+                char_length(btrim(last_error_code)) >= 1
+                AND char_length(last_error_code) <= 64
+            )
+        ),
+
+    CONSTRAINT chk_staged_lease_and_failure_invariants
+        CHECK (
+            (
+                state = 'staged'
+                AND claim_lease_id IS NULL
+                AND lease_expires_at IS NULL
+                AND delivery_attempts BETWEEN 0 AND 4
+                AND failed_at IS NULL
+            )
+            OR
+            (
+                state = 'claimed'
+                AND claim_lease_id IS NOT NULL
+                AND claim_lease_id ~ '^lease_[0-9a-f]{32}$'
+                AND lease_expires_at IS NOT NULL
+                AND delivery_attempts BETWEEN 1 AND 5
+                AND failed_at IS NULL
+            )
+            OR
+            (
+                state = 'failed'
+                AND claim_lease_id IS NULL
+                AND lease_expires_at IS NULL
+                AND delivery_attempts BETWEEN 1 AND 5
+                AND failed_at IS NOT NULL
+                AND last_error_code IS NOT NULL
+            )
+        )
+);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_staged_notes_uid_state_created
+    ON public.telegram_staged_notes (firebase_uid, state, created_at ASC, firestore_note_id ASC);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_staged_notes_uid_lease
+    ON public.telegram_staged_notes (firebase_uid, claim_lease_id, firestore_note_id ASC)
+    WHERE state = 'claimed';
+
+CREATE INDEX IF NOT EXISTS idx_telegram_staged_notes_expires_at
+    ON public.telegram_staged_notes (expires_at);
+
+-- -----------------------------------------------------------------------------
+-- STEP 6: Explicit Least-Privilege DML Grants to SQL_USER (ai_studio_app_user)
+-- -----------------------------------------------------------------------------
+REVOKE ALL ON
+    public.telegram_account_links,
+    public.telegram_link_challenges,
+    public.telegram_processed_updates,
+    public.telegram_staged_notes
+FROM PUBLIC;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+    public.telegram_account_links,
+    public.telegram_link_challenges,
+    public.telegram_processed_updates,
+    public.telegram_staged_notes
+TO ai_studio_app_user;
+
+COMMIT;
+6. Complete Transaction Pseudocode for Staged Note & Lease Lifecycle (Issue 3)
+6.1 Lock Order & Index Coverage Across All Staged-Note Transactions
+Parent Table Lock First: Every transaction that mutates telegram_staged_notes on behalf of a user (Webhook Stage, Claim, Ack/Fail, Retry, Dismiss, Unlink) locks the user's parent row in public.telegram_account_links first (FOR NO KEY UPDATE for webhook staging to serialize the 100-row cap; FOR KEY SHARE for Claim, Ack/Fail, Retry, Dismiss; FOR UPDATE via DELETE for Unlink).
+Deterministic Child Row Lock Order: All SELECT ... FOR UPDATE / FOR UPDATE SKIP LOCKED queries on public.telegram_staged_notes order by (created_at ASC, firestore_note_id ASC) or (firestore_note_id ASC), backed by idx_telegram_staged_notes_uid_state_created and idx_telegram_staged_notes_uid_lease.
+6.2 Webhook Ingestion with Race-Safe 100-Row Cap (Requirements 11)
+SQL
+BEGIN;
+
+-- 1. Deduplicate by update_id
+INSERT INTO public.telegram_processed_updates (
+    update_id, telegram_user_id, telegram_chat_id, message_id, outcome
+) VALUES ($1, $2, $3, $4, 'processing_message')
+ON CONFLICT (update_id) DO NOTHING
+RETURNING update_id;
+-- If 0 rows returned -> Duplicate webhook delivery: COMMIT and return HTTP 200 { ok: true }.
+
+-- 2. Lock parent link row with FOR NO KEY UPDATE (serializes concurrent webhooks for THIS user)
+SELECT firebase_uid
+FROM public.telegram_account_links
+WHERE telegram_user_id = $2
+FOR NO KEY UPDATE;
+-- If 0 rows returned -> Unlinked sender:
+--   UPDATE public.telegram_processed_updates SET outcome = 'ignored_unlinked_sender' WHERE update_id = $1;
+--   COMMIT; -> Return HTTP 200 { ok: true }.
+
+-- 3. Delete any expired staged notes for this user first so expired rows do not block the 100-row cap
+DELETE FROM public.telegram_staged_notes
+WHERE firebase_uid = $firebase_uid
+  AND expires_at <= clock_timestamp();
+
+-- 4. Count all unexpired rows ('staged', 'claimed', 'failed') for this user under the parent lock
+SELECT COUNT(*)::int AS current_queued_count
+FROM public.telegram_staged_notes
+WHERE firebase_uid = $firebase_uid;
+
+-- If current_queued_count >= 100:
+--   UPDATE public.telegram_processed_updates
+--   SET outcome = 'rejected_staging_queue_full'
+--   WHERE update_id = $1;
+--   COMMIT; -> Return HTTP 200 { ok: true }.
+
+-- 5. Insert staged note (state = 'staged', delivery_attempts = 0)
+INSERT INTO public.telegram_staged_notes (
+    firestore_note_id, firebase_uid, telegram_user_id, telegram_chat_id,
+    telegram_message_id, source_update_id, title, content, description,
+    content_type, category_id, tags_json, source_name, source_type,
+    source_url, file_name, file_size, is_favorite, is_archived,
+    state, delivery_attempts, created_at, expires_at
+) VALUES (
+    $5, $firebase_uid, $2, $3, $4, $1,
+    $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16,
+    FALSE, FALSE, 'staged', 0, clock_timestamp(), clock_timestamp() + INTERVAL '7 days'
+)
+ON CONFLICT (telegram_chat_id, telegram_message_id) DO NOTHING
+RETURNING firestore_note_id;
+
+UPDATE public.telegram_processed_updates
+SET outcome = CASE WHEN $inserted THEN 'staged_note_created' ELSE 'ignored_duplicate_message' END
+WHERE update_id = $1;
+
+COMMIT;
+6.3 Expired Lease Recovery (Attempts 1..4), 5th-Attempt Dead-Letter Transition, & Batch Claim (POST /api/telegram/staged/claim — Requirements 1, 2, 3, 4, 5, 6)
+Precondition: Backend verifies Firebase ID token (firebase_uid = $1) and generates claimLeaseId = 'lease_' + crypto.randomBytes(16).toString('hex') ($2) on the server.
+SQL
+BEGIN;
+
+-- 1. Lock parent link row (FOR KEY SHARE) to coordinate with Unlink
+SELECT firebase_uid
+FROM public.telegram_account_links
+WHERE firebase_uid = $1
+FOR KEY SHARE;
+-- If 0 rows returned -> COMMIT and return { claimLeaseId: null, notes: [] }.
+
+-- 2. Transition expired 5th-attempt leases (delivery_attempts = 5) to terminal 'failed' state
+WITH expired_fifth AS (
+    SELECT firestore_note_id
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'claimed'
+      AND lease_expires_at <= clock_timestamp()
+      AND delivery_attempts >= 5
+    ORDER BY firestore_note_id ASC
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.telegram_staged_notes AS n
+SET state = 'failed',
+    claim_lease_id = NULL,
+    lease_expires_at = NULL,
+    failed_at = clock_timestamp(),
+    last_error_code = COALESCE(n.last_error_code, 'max_delivery_attempts_exceeded'),
+    expires_at = GREATEST(n.expires_at, clock_timestamp() + INTERVAL '14 days')
+FROM expired_fifth
+WHERE n.firestore_note_id = expired_fifth.firestore_note_id;
+
+-- 3. Recover expired leases from attempts 1..4 back to 'staged' (preserving delivery_attempts 1..4)
+WITH expired_recoverable AS (
+    SELECT firestore_note_id
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'claimed'
+      AND lease_expires_at <= clock_timestamp()
+      AND delivery_attempts BETWEEN 1 AND 4
+    ORDER BY firestore_note_id ASC
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.telegram_staged_notes AS n
+SET state = 'staged',
+    claim_lease_id = NULL,
+    lease_expires_at = NULL,
+    last_error_code = COALESCE(n.last_error_code, 'lease_expired_requeued')
+FROM expired_recoverable
+WHERE n.firestore_note_id = expired_recoverable.firestore_note_id;
+
+-- 4. Claim up to 20 'staged' rows (both initial attempts = 0 and recovered attempts = 1..4)
+--    using FOR UPDATE SKIP LOCKED and increment delivery_attempts by +1 (to 1..5)
+WITH claimable AS (
+    SELECT firestore_note_id
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'staged'
+      AND expires_at > clock_timestamp()
+      AND delivery_attempts BETWEEN 0 AND 4
+    ORDER BY created_at ASC, firestore_note_id ASC
+    LIMIT 20
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.telegram_staged_notes AS n
+SET state = 'claimed',
+    claim_lease_id = $2,
+    lease_expires_at = clock_timestamp() + INTERVAL '60 seconds',
+    delivery_attempts = n.delivery_attempts + 1
+FROM claimable
+WHERE n.firestore_note_id = claimable.firestore_note_id
+RETURNING
+    n.firestore_note_id,
+    n.firebase_uid,
+    n.telegram_user_id,
+    n.telegram_chat_id,
+    n.telegram_message_id::text AS telegram_message_id,
+    n.title,
+    n.content,
+    n.description,
+    n.content_type,
+    n.category_id,
+    n.tags_json,
+    n.source_name,
+    n.source_type,
+    n.source_url,
+    n.file_name,
+    n.file_size,
+    n.is_favorite,
+    n.is_archived,
+    n.delivery_attempts,
+    n.claim_lease_id,
+    n.lease_expires_at;
+
+COMMIT;
+6.4 Partial Acknowledgement, Partial Permanent/Transient Failure, & Stale Lease Rejection (POST /api/telegram/staged/ack — Requirements 7, 8, 12)
+Precondition: Authenticated firebase_uid = $1 submits:
+claimLeaseId = $2 (^lease_[0-9a-f]{32}$)
+acknowledgedNoteIds = $3::text[] (0..20 IDs that succeeded or were verified already_imported in Firestore)
+permanentFailedNoteIds = $4::text[] + permanentErrorCode = $5 (0..20 IDs that encountered a permanent validation/provenance conflict or reached delivery_attempts = 5)
+(Disjointness check in handler: acknowledgedNoteIds and permanentFailedNoteIds must have zero overlapping IDs).
+SQL
+BEGIN;
+
+-- 1. Lock parent link row (FOR KEY SHARE)
+SELECT firebase_uid
+FROM public.telegram_account_links
+WHERE firebase_uid = $1
+FOR KEY SHARE;
+
+-- 2. Lock all active claimed rows matching this user + active unexpired lease + submitted IDs
+--    in deterministic firestore_note_id ASC order
+WITH locked_lease_rows AS (
+    SELECT firestore_note_id, delivery_attempts
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'claimed'
+      AND claim_lease_id = $2
+      AND lease_expires_at > clock_timestamp()
+      AND firestore_note_id = ANY($3::text[] || $4::text[])
+    ORDER BY firestore_note_id ASC
+    FOR UPDATE
+),
+-- 3. Delete acknowledged rows
+deleted_acks AS (
+    DELETE FROM public.telegram_staged_notes AS n
+    USING locked_lease_rows AS l
+    WHERE n.firestore_note_id = l.firestore_note_id
+      AND n.firestore_note_id = ANY($3::text[])
+    RETURNING n.firestore_note_id
+),
+-- 4. Transition permanently failed rows (or rows on attempt 5) to state = 'failed'
+marked_failed AS (
+    UPDATE public.telegram_staged_notes AS n
+    SET state = 'failed',
+        claim_lease_id = NULL,
+        lease_expires_at = NULL,
+        failed_at = clock_timestamp(),
+        last_error_code = $5,
+        expires_at = GREATEST(n.expires_at, clock_timestamp() + INTERVAL '14 days')
+    FROM locked_lease_rows AS l
+    WHERE n.firestore_note_id = l.firestore_note_id
+      AND n.firestore_note_id = ANY($4::text[])
+    RETURNING n.firestore_note_id
+)
+SELECT
+    COALESCE((SELECT array_agg(firestore_note_id) FROM deleted_acks), ARRAY[]::text[]) AS acked_ids,
+    COALESCE((SELECT array_agg(firestore_note_id) FROM marked_failed), ARRAY[]::text[]) AS failed_ids;
+
+COMMIT;
+Stale Lease Rejection: Any ID submitted under an expired or mismatched claim_lease_id is excluded by locked_lease_rows (WHERE state = 'claimed' AND claim_lease_id = $2 AND lease_expires_at > clock_timestamp()) and returned in ignoredStaleIds (HTTP 200).
+Transient Failures on Attempts 1..4: Any note in the claimed batch that failed due to a transient network timeout is simply omitted from acknowledgedNoteIds and permanentFailedNoteIds; its 60-second lease expires naturally and Step 3 of Claim (Section 6.3) recovers it back to state = 'staged'.
+6.5 Retry & Dismissal of Failed Rows Without Racing Claim or Ack (POST /api/telegram/staged/retry & POST /api/telegram/staged/dismiss — Requirements 9, 10)
+Because Retry and Dismiss filter strictly on WHERE state = 'failed' (where claim_lease_id IS NULL) while Claim selects WHERE state = 'staged' (or expired 'claimed') and Ack selects WHERE state = 'claimed', Retry and Dismiss operate on a disjoint state (state = 'failed') and use FOR UPDATE SKIP LOCKED in firestore_note_id ASC order:
+SQL
+-- Retry Transaction (POST /api/telegram/staged/retry)
+BEGIN;
+
+SELECT firebase_uid FROM public.telegram_account_links WHERE firebase_uid = $1 FOR KEY SHARE;
+
+WITH target_failed AS (
+    SELECT firestore_note_id
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'failed'
+      AND expires_at > clock_timestamp()
+      AND ($2::text[] IS NULL OR firestore_note_id = ANY($2::text[]))
+    ORDER BY firestore_note_id ASC
+    LIMIT 20
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE public.telegram_staged_notes AS n
+SET state = 'staged',
+    claim_lease_id = NULL,
+    lease_expires_at = NULL,
+    delivery_attempts = 0,
+    failed_at = NULL,
+    last_error_code = NULL,
+    expires_at = clock_timestamp() + INTERVAL '7 days'
+FROM target_failed
+WHERE n.firestore_note_id = target_failed.firestore_note_id
+RETURNING n.firestore_note_id;
+
+COMMIT;
+
+-- Dismiss Transaction (POST /api/telegram/staged/dismiss)
+BEGIN;
+
+SELECT firebase_uid FROM public.telegram_account_links WHERE firebase_uid = $1 FOR KEY SHARE;
+
+WITH target_dismiss AS (
+    SELECT firestore_note_id
+    FROM public.telegram_staged_notes
+    WHERE firebase_uid = $1
+      AND state = 'failed'
+      AND firestore_note_id = ANY($2::text[])
+    ORDER BY firestore_note_id ASC
+    FOR UPDATE SKIP LOCKED
+)
+DELETE FROM public.telegram_staged_notes AS n
+USING target_dismiss
+WHERE n.firestore_note_id = target_dismiss.firestore_note_id
+RETURNING n.firestore_note_id;
+
+COMMIT;
+7. Verified Facts vs. Assumptions
+Statement	Classification	Verification Basis
+PUBLIC has count = 0 in pg_catalog.pg_roles and is represented by grantee = 0::oid in aclexplode()	Verified Fact	Live read-only SQL execution on PostgreSQL 18.6 (ai-studio-3b52a41f)
+cloud_sql_development_database currently grants TEMPORARY to PUBLIC (0::oid) via acldefault('d', datdba)	Verified Fact	Live read-only Q1 execution on PostgreSQL 18.6 (acl_public_temp: true, eff_user_temp: true)
+Schema public currently grants USAGE (not CREATE) to PUBLIC (0::oid)	Verified Fact	Live read-only Q2 execution on PostgreSQL 18.6 (acl_public_usage: true, acl_public_create: false)
+ai_studio_admin (SQL_ADMIN_USER) is a member of cloudsqlsuperuser (datdba) and can execute REVOKE TEMPORARY ON DATABASE and CREATE TABLE	Verified Fact	Live read-only pg_roles + pg_has_role query on PostgreSQL 18.6
+firestore.rules allows an authenticated user to create any valid document ID (1..128 chars matching ^[a-zA-Z0-9_\-]+$) in their own /notes/{noteId} collection	Verified Fact	Direct inspection of /firestore.rules lines 23–25, 82–114, 175–178
+_tgv1_ deterministic document IDs provide collision resistance and application-level namespace isolation, not cryptographic origin authentication against a malicious owner client	Verified Architectural Fact	Honest-client self-library trust model analysis (Section 3, Issue 1)
+8. Remaining Implementation Risks
+Self-Library Honest-Client Boundary: Under Architecture A, an authenticated user running custom scripts in their browser could pre-create a _tgv1_ document ID or acknowledge a leased note without writing to Firestore. Impact is strictly confined to that user's own personal library.
+Scale-to-Zero Cold Wake-Up Latency: Initial Cloud SQL connection after idle scale-to-zero takes ~5.5 seconds (measured in Gate 2B.0.6). Using connectionTimeoutMillis: 15000 on pg.Pool in Gate 2B.2+ accommodates this cold start safely.
+9. Exact Migration Execution Order & Strict Gate 2B.1B Scope Boundaries (Issue 5)
+9.1 What Gate 2B.1B Authorizes (Infrastructure Schema & Privilege Migration ONLY)
+Connect to cloud_sql_development_database as SQL_ADMIN_USER (ai_studio_admin) via a temporary one-shot pg.Client and execute the exact 6-step transaction in Section 5:
+Step 1: REVOKE TEMPORARY ON DATABASE cloud_sql_development_database FROM PUBLIC, ai_studio_app_user;
+Step 2: CREATE TABLE IF NOT EXISTS public.telegram_account_links (...)
+Step 3: CREATE TABLE IF NOT EXISTS public.telegram_link_challenges (...) + 2 indexes
+Step 4: CREATE TABLE IF NOT EXISTS public.telegram_processed_updates (...) + 1 index
+Step 5: CREATE TABLE IF NOT EXISTS public.telegram_staged_notes (...) + 3 indexes
+Step 6: REVOKE ALL ... FROM PUBLIC and GRANT SELECT, INSERT, UPDATE, DELETE ... TO ai_studio_app_user
+Close the SQL_ADMIN_USER client in a finally block.
+Connect as SQL_USER (ai_studio_app_user) in a BEGIN READ ONLY; ... COMMIT; transaction and execute Queries 1–5 from Section 4 plus information_schema constraint/index verification to prove all 4 tables, constraints, and indexes exist and that eff_user_create, eff_user_temp, acl_public_temp, eff_truncate, eff_references, eff_trigger, and eff_user_is_owner are all false.
+9.2 What Gate 2B.1B Strictly Does NOT Authorize
+Gate 2B.1B must NOT:
+Implement the Firebase Token Verifier.
+Implement account linking endpoints or webhook /start consumption.
+Implement Telegram message ingestion or staging endpoints.
+Modify Firestore client code (src/services/repository.ts) or firestore.rules.
+Modify frontend React components.
+Register Telegram webhooks or call external Telegram APIs.
+Deploy the application or implement Cloud Storage/media handling.
+Modify any repository files or install any packages.
+10. Final Verdict
+APPROVED FOR GATE 2B.1B
+(Strictly read-only audit completed: 0 files modified, 0 DDL/DML/privilege statements executed, 0 packages changed.)
