@@ -18,16 +18,12 @@ import {
   Star,
   Trash2,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -45,10 +41,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState, ErrorState, GridSkeleton, ListSkeleton } from "@/components/app/states";
 import { NoteCard } from "@/components/app/note-card";
 import { iconByName, localizedCategoryName, TYPE_META } from "@/components/app/meta";
 import { showUndoToast } from "@/components/app/undo-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Tooltip,
   TooltipContent,
@@ -68,7 +74,8 @@ import { NOTE_TYPES } from "@/lib/domain/types";
 import { useAppStore } from "@/stores/app-store";
 import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import type { NoteDTO } from "@/lib/domain/types";
+import type { CategoryDTO, NoteDTO, TagDTO } from "@/lib/domain/types";
+import type { Locale } from "@/lib/i18n/dictionaries";
 
 export function LibraryView() {
   const { t, locale } = useI18n();
@@ -89,6 +96,9 @@ export function LibraryView() {
   const emptyTrash = useEmptyTrash();
 
   const [searchInput, setSearchInput] = useState(filters.q);
+  // UX-B1 — the unified Filter entry: desktop popover / mobile bottom-sheet.
+  const isMobile = useIsMobile();
+  const [filterOpen, setFilterOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // The categorize Select resets to its placeholder after every action.
   const [bulkCategoryId, setBulkCategoryId] = useState("");
@@ -288,6 +298,45 @@ export function LibraryView() {
         ? localizedCategoryName(activeCategory, locale)
         : filters.categoryId;
 
+  // UX-B1 — count of filters that live INSIDE the Filter panel (the badge on
+  // the entry button). q/type live on their own layers; the FULL active count
+  // remains the QE5 bar's job.
+  const panelFilterCount =
+    (filters.favorite ? 1 : 0) +
+    (filters.categoryId !== "all" ? 1 : 0) +
+    filters.tagIds.length;
+
+  // One shared trigger for both the desktop Popover and the mobile Drawer.
+  const filterTrigger = (
+    <Button
+      variant="outline"
+      size="sm"
+      className={cn(
+        "h-8 shrink-0 gap-1.5 rounded-full text-xs",
+        panelFilterCount > 0 && "border-primary/60 bg-primary/10 text-primary",
+      )}
+      aria-label={
+        panelFilterCount > 0
+          ? `${t("a11y.filtersButton")} — ${t("library.activeFilters.count", {
+              n: formatNumber(panelFilterCount, locale),
+            })}`
+          : t("a11y.filtersButton")
+      }
+    >
+      <Filter className="size-3.5" aria-hidden="true" />
+      {t("library.filters.button")}
+      {panelFilterCount > 0 ? (
+        <span
+          className="flex size-4.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+          aria-hidden="true"
+        >
+          {formatNumber(panelFilterCount, locale)}
+        </span>
+      ) : null}
+      <ChevronDown className="size-3.5 opacity-60" aria-hidden="true" />
+    </Button>
+  );
+
   const renderBody = () => {
     if (notesQuery.isLoading && !notesQuery.data) {
       return filters.layout === "grid" ? <GridSkeleton /> : <ListSkeleton rows={7} />;
@@ -470,12 +519,15 @@ export function LibraryView() {
         ) : null}
       </div>
 
-      {/* Filter toolbar — scrollable chips + always-visible stable controls (QE2):
-          sort & layout live OUTSIDE the horizontal scroll area so they are
-          reachable without scrolling at any viewport width. */}
-      <div className="flex items-center gap-1.5">
-        <div className="scroll-area -mx-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 pb-1">
-        {/* Type chips */}
+      {/* UX-B1 (T-1/T-6) — three-layer toolbar architecture:
+          layer 1: always-visible search (above);
+          layer 2: the five content-type chips (+ All) — the only chips kept
+                   in the open row;
+          layer 3: ONE «Filters» entry (desktop popover / mobile bottom-sheet)
+                   holding the state toggles + category + tags, next to the
+                   always-visible stable controls (sort / layout / bulk — QE2). */}
+      <div className="scroll-area -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {/* Layer 2 — type chips */}
         <FilterChip
           active={filters.type === "all"}
           onClick={() => setFilters({ type: "all" })}
@@ -495,121 +547,73 @@ export function LibraryView() {
             />
           );
         })}
+      </div>
 
-        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
+      {/* Layer 3 — filter entry + stable controls (QE2: never scrolled away) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {isMobile ? (
+          <Drawer open={filterOpen} onOpenChange={setFilterOpen}>
+            <DrawerTrigger asChild>{filterTrigger}</DrawerTrigger>
+            <DrawerContent className="max-h-[85dvh]">
+              <DrawerHeader className="pb-2">
+                <DrawerTitle className="flex items-center justify-center gap-2 text-sm">
+                  {t("library.filters.button")}
+                  {panelFilterCount > 0 ? (
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      {formatNumber(panelFilterCount, locale)}
+                    </span>
+                  ) : null}
+                </DrawerTitle>
+              </DrawerHeader>
+              <div className="scroll-area max-h-[55dvh] overflow-y-auto px-4 pb-2">
+                <FilterPanelContent
+                  categories={categories}
+                  tags={tags}
+                  locale={locale}
+                />
+              </div>
+              <DrawerFooter className="flex-row gap-2 border-t pt-3">
+                <Button
+                  variant="outline"
+                  className="h-10 flex-1 text-xs"
+                  onClick={handleResetFilters}
+                >
+                  {t("common.clearAll")}
+                </Button>
+                <Button
+                  className="h-10 flex-1 text-xs"
+                  onClick={() => setFilterOpen(false)}
+                >
+                  {t("library.filters.apply")}
+                </Button>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Popover open={filterOpen} onOpenChange={setFilterOpen}>
+            <PopoverTrigger asChild>{filterTrigger}</PopoverTrigger>
+            <PopoverContent align="start" className="w-72 p-3">
+              <FilterPanelContent
+                categories={categories}
+                tags={tags}
+                locale={locale}
+              />
+              {panelFilterCount > 0 ? (
+                <div className="mt-3 border-t pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-full text-xs text-muted-foreground"
+                    onClick={handleResetFilters}
+                  >
+                    {t("common.clearAll")}
+                  </Button>
+                </div>
+              ) : null}
+            </PopoverContent>
+          </Popover>
+        )}
 
-        {/* Favorite / uncategorized (N1) / archived / trash (S5) */}
-        <FilterChip
-          active={filters.favorite}
-          onClick={() => setFilters({ favorite: !filters.favorite })}
-          icon={<Star className="size-3.5" aria-hidden="true" />}
-          label={t("library.filters.favorite")}
-        />
-        <FilterChip
-          active={filters.categoryId === "none"}
-          onClick={() =>
-            setFilters({ categoryId: filters.categoryId === "none" ? "all" : "none" })
-          }
-          icon={<Inbox className="size-3.5" aria-hidden="true" />}
-          label={t("library.filters.uncategorized")}
-        />
-        <FilterChip
-          active={filters.archived}
-          onClick={() => setFilters({ archived: !filters.archived })}
-          icon={<Archive className="size-3.5" aria-hidden="true" />}
-          label={t("library.filters.archived")}
-        />
-        <FilterChip
-          active={filters.trash}
-          onClick={() => setFilters({ trash: !filters.trash })}
-          icon={<Trash2 className="size-3.5" aria-hidden="true" />}
-          label={t("library.filters.trash")}
-        />
-
-        <span className="mx-0.5 w-px shrink-0 bg-border" aria-hidden="true" />
-
-        {/* Category select */}
-        <Select
-          value={filters.categoryId}
-          onValueChange={(value) => setFilters({ categoryId: value })}
-        >
-          <SelectTrigger
-            size="sm"
-            className="h-8 min-w-28 shrink-0 text-xs"
-            aria-label={t("library.filters.category")}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("common.all")}</SelectItem>
-            <SelectItem value="none">{t("common.none")}</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
-                {localizedCategoryName(category, locale)} (
-                {formatNumber(category.noteCount, locale)})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Tags popover */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-8 shrink-0 gap-1.5 rounded-full text-xs",
-                filters.tagIds.length > 0 && "border-primary/60 bg-primary/10 text-primary",
-              )}
-            >
-              <Filter className="size-3.5" aria-hidden="true" />
-              {filters.tagIds.length > 0
-                ? t("library.filters.tagsSelected", {
-                    n: formatNumber(filters.tagIds.length, locale),
-                  })
-                : t("library.filters.tags")}
-              <ChevronDown className="size-3.5" aria-hidden="true" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-56 p-2">
-            <div className="scroll-area max-h-64 overflow-y-auto">
-              {tags.length === 0 ? (
-                <p className="p-2 text-xs text-muted-foreground">{t("tags.empty")}</p>
-              ) : (
-                tags.map((tag) => {
-                  const checked = filters.tagIds.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs hover:bg-accent"
-                    >
-                      <span
-                        className={cn(
-                          "flex size-4 items-center justify-center rounded border",
-                          checked
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-input",
-                        )}
-                      >
-                        {checked ? <Check className="size-3" aria-hidden="true" /> : null}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {formatNumber(tag.noteCount, locale)}
-                      </span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </PopoverContent>
-        </Popover>
-        </div>
-
-        {/* Stable end of the bar — never scrolls out of view (QE2) */}
         <span className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
 
         {/* Sort */}
@@ -1059,5 +1063,174 @@ function ActiveFilterChip({
         <X className="size-3" aria-hidden="true" />
       </button>
     </Badge>
+  );
+}
+
+/** UX-B1 (T-6) — the shared filter surface inside the unified «Filters»
+ * entry, structured by the IA split: «status & places» rows first (favorite /
+ * uncategorized / archived / trash), then the organizing facets (category
+ * select + tag checks). Rendered verbatim by the desktop Popover AND the
+ * mobile bottom-sheet Drawer — one filter matrix, two containers. */
+function FilterPanelContent({
+  categories,
+  tags,
+  locale,
+}: {
+  categories: CategoryDTO[];
+  tags: TagDTO[];
+  locale: Locale;
+}) {
+  const { t } = useI18n();
+  const filters = useAppStore((state) => state.filters);
+  const setFilters = useAppStore((state) => state.setFilters);
+
+  const toggleTag = useCallback(
+    (tagId: string) => {
+      const next = filters.tagIds.includes(tagId)
+        ? filters.tagIds.filter((id) => id !== tagId)
+        : [...filters.tagIds, tagId];
+      setFilters({ tagIds: next });
+    },
+    [filters.tagIds, setFilters],
+  );
+
+  return (
+    <div className="space-y-3">
+      <section aria-label={t("library.filters.sectionState")} className="space-y-0.5">
+        <p className="px-1 pb-1 text-[11px] font-semibold text-muted-foreground">
+          {t("library.filters.sectionState")}
+        </p>
+        <FilterToggleRow
+          icon={Star}
+          label={t("library.filters.favorite")}
+          checked={filters.favorite}
+          onToggle={() => setFilters({ favorite: !filters.favorite })}
+        />
+        <FilterToggleRow
+          icon={Inbox}
+          label={t("library.filters.uncategorized")}
+          checked={filters.categoryId === "none"}
+          onToggle={() =>
+            setFilters({ categoryId: filters.categoryId === "none" ? "all" : "none" })
+          }
+        />
+        <FilterToggleRow
+          icon={Archive}
+          label={t("library.filters.archived")}
+          checked={filters.archived}
+          onToggle={() => setFilters({ archived: !filters.archived })}
+        />
+        <FilterToggleRow
+          icon={Trash2}
+          label={t("library.filters.trash")}
+          checked={filters.trash}
+          onToggle={() => setFilters({ trash: !filters.trash })}
+        />
+      </section>
+
+      <section aria-label={t("library.filters.sectionOrganize")} className="space-y-1.5">
+        <p className="px-1 text-[11px] font-semibold text-muted-foreground">
+          {t("library.filters.sectionOrganize")}
+        </p>
+        <Select
+          value={filters.categoryId}
+          onValueChange={(value) => setFilters({ categoryId: value })}
+        >
+          <SelectTrigger
+            className="w-full"
+            aria-label={t("library.filters.category")}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("common.all")}</SelectItem>
+            <SelectItem value="none">{t("common.none")}</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {localizedCategoryName(category, locale)} (
+                {formatNumber(category.noteCount, locale)})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <div className="scroll-area max-h-44 overflow-y-auto">
+          {tags.length === 0 ? (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
+              {t("tags.empty")}
+            </p>
+          ) : (
+            tags.map((tag) => {
+              const checked = filters.tagIds.includes(tag.id);
+              return (
+                <button
+                  key={tag.id}
+                  type="button"
+                  aria-pressed={checked}
+                  onClick={() => toggleTag(tag.id)}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-xs hover:bg-accent"
+                >
+                  <span
+                    className={cn(
+                      "flex size-4 items-center justify-center rounded border",
+                      checked
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-input",
+                    )}
+                  >
+                    {checked ? <Check className="size-3" aria-hidden="true" /> : null}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatNumber(tag.noteCount, locale)}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/** UX-B1 — one accessible switch row (role="switch") with a directional
+ * thumb (rtl/ltr both covered). The whole row is the hit target. */
+function FilterToggleRow({
+  icon: Icon,
+  label,
+  checked,
+  onToggle,
+}: {
+  icon: LucideIcon;
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={onToggle}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-start text-xs transition-colors hover:bg-accent"
+    >
+      <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 flex-1 font-medium">{label}</span>
+      <span
+        aria-hidden="true"
+        className={cn(
+          "flex h-4.5 w-8 shrink-0 items-center rounded-full border p-0.5 transition-colors",
+          checked ? "border-primary bg-primary" : "border-transparent bg-input",
+        )}
+      >
+        <span
+          className={cn(
+            "size-3.5 rounded-full bg-background shadow-sm transition-transform",
+            checked && "ltr:translate-x-3.5 rtl:-translate-x-3.5",
+          )}
+        />
+      </span>
+    </button>
   );
 }

@@ -87,6 +87,13 @@ export const en = {
   "library.filters.uncategorized": "Uncategorized",
   "library.filters.archived": "Archived",
   "library.filters.trash": "Trash",
+  // UX-B1 (T-1/T-6) — the unified Filter entry (popover desktop / bottom-sheet
+  // mobile) replaces the state-chip strip; sections follow the T-6 IA split.
+  "library.filters.button": "Filters",
+  "library.filters.sectionState": "Status & places",
+  "library.filters.sectionOrganize": "Category & tags",
+  "library.filters.apply": "Show results",
+  "a11y.filtersButton": "Open filters",
   "library.noResults.title": "No matching items",
   "library.noResults.desc": "Try different keywords or clear some filters.",
   // UX-A7 — friendly, distinct empty states (the inbox tone is the benchmark)
@@ -441,6 +448,13 @@ export const fa: Record<I18nKey, string> = {
   "library.filters.uncategorized": "بدون دسته",
   "library.filters.archived": "بایگانی",
   "library.filters.trash": "سطل",
+  // UX-B1 (T-1/T-6) — ورودی یکپارچهٔ «فیلترها» (popover در دسکتاپ / bottom-sheet
+  // در موبایل) جایگزین ردیف chipهای وضعیت؛ بخش‌بندی مطابق تفکیک IA تی‌-۶.
+  "library.filters.button": "فیلترها",
+  "library.filters.sectionState": "وضعیت و جایگاه‌ها",
+  "library.filters.sectionOrganize": "دسته و برچسب‌ها",
+  "library.filters.apply": "نمایش نتایج",
+  "a11y.filtersButton": "باز کردن فیلترها",
   "library.noResults.title": "موردی یافت نشد",
   "library.noResults.desc": "کلیدواژهٔ دیگری امتحان کنید یا فیلترها را کم کنید.",
   // UX-A7 — حالت‌های خالی مجزا و دوستانه (لحن صندوق ورودی معیار است)
