@@ -334,6 +334,15 @@ export const en = {
   "a11y.removeFilter": "Remove filter",
   "a11y.favoriteToggle": "Toggle favorite",
   "a11y.accountMenu": "Account menu",
+  // UX-B3 (T-3) — the unified ⌘K command palette (one search pattern for
+  // header + library; keyboard-first).
+  "palette.open": "Open the command palette (\u2318K)",
+  "palette.placeholder": "Search items or jump to\u2026",
+  "palette.views": "Views",
+  "palette.actions": "Actions",
+  "palette.items": "Items",
+  "palette.searchInLibrary": "Show \u00ab{q}\u00bb in the library",
+  "palette.noResults": "No matches",
 
   "auth.signIn": "Sign in",
   "auth.signUp": "Create account",
@@ -699,6 +708,14 @@ export const fa: Record<I18nKey, string> = {
   "a11y.removeFilter": "حذف فیلتر",
   "a11y.favoriteToggle": "تغییر وضعیت علاقه‌مندی",
   "a11y.accountMenu": "منوی حساب",
+  // UX-B3 (T-3) — پالت فرمان‌های متے⌘K (یک الگوی جستجو برای هدر + کتابخانه؛ کیبورد-محور)
+  "palette.open": "باز کردن پالت فرمان‌ها (⌘K)",
+  "palette.placeholder": "جستجوی آیتم‌ها یا پرش به…",
+  "palette.views": "دیدها",
+  "palette.actions": "اعمال",
+  "palette.items": "آیتم‌ها",
+  "palette.searchInLibrary": "نمایش نتایج «{q}» در کتابخانه",
+  "palette.noResults": "موردی پیدا نشد",
 
   "auth.signIn": "ورود",
   "auth.signUp": "ساخت حساب",

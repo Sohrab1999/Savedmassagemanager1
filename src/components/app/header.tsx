@@ -159,10 +159,13 @@ export function AppHeader() {
   const { t } = useI18n();
   const setView = useAppStore((state) => state.setView);
   const setCaptureOpen = useAppStore((state) => state.setCaptureOpen);
+  // UX-B3 (T-3) — the header search trigger opens the ONE command palette;
+  // no second search model.
+  const setPaletteOpen = useAppStore((state) => state.setPaletteOpen);
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur sm:px-4">
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 shrink items-center gap-2.5">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
           <Bookmark className="size-4.5" aria-hidden="true" />
         </div>
@@ -174,14 +177,33 @@ export function AppHeader() {
         </div>
       </div>
 
-      <div className="ms-auto flex items-center gap-0.5 sm:gap-1">
+      {/* UX-B3 — desktop search trigger: a pill that reads like an input and
+          advertises ⌘K. It opens the SAME palette the mobile icon opens. */}
+      <button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        aria-label={t("palette.open")}
+        className="mx-1 hidden h-9 min-w-0 flex-1 items-center gap-2 rounded-full border bg-muted/40 px-3 text-xs text-muted-foreground transition-colors hover:bg-muted sm:flex"
+      >
+        <Search className="size-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-start">
+          {t("palette.placeholder")}
+        </span>
+        <kbd
+          className="hidden shrink-0 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground md:inline"
+          aria-hidden="true"
+        >
+          ⌘K
+        </kbd>
+      </button>
+
+      <div className="ms-auto flex shrink-0 items-center gap-0.5 sm:gap-1">
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden"
-          aria-label={t("a11y.search")}
-          title={t("a11y.search")}
-          onClick={() => setView("library")}
+          aria-label={t("palette.open")}
+          title={t("palette.open")}
+          onClick={() => setPaletteOpen(true)}
         >
           <Search className="size-[18px]" aria-hidden="true" />
         </Button>

@@ -96,6 +96,16 @@ export function LibraryView() {
   const emptyTrash = useEmptyTrash();
 
   const [searchInput, setSearchInput] = useState(filters.q);
+  // UX-B3 (T-3) — external surfaces (the ⌘K palette's library-search action)
+  // may change `filters.q` while this view is mounted; the local input must
+  // mirror the store or the debounce below would RESURRECT the stale local
+  // query over the externally-applied one. Render-phase state adjustment
+  // (the React-documented pattern — no setState inside an effect).
+  const [lastStoreQ, setLastStoreQ] = useState(filters.q);
+  if (filters.q !== lastStoreQ) {
+    setLastStoreQ(filters.q);
+    setSearchInput(filters.q);
+  }
   // UX-B1 — the unified Filter entry: desktop popover / mobile bottom-sheet.
   const isMobile = useIsMobile();
   const [filterOpen, setFilterOpen] = useState(false);

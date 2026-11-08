@@ -125,11 +125,15 @@ interface AppState {
   /** S6 — bulk-selection mode lives here so the mobile capture FAB can hide
    * itself while selecting (the two flows must not overlap). */
   bulkSelectMode: boolean;
+  /** UX-B3 (T-3) — the ONE search/command surface: opened by ⌘K (global),
+   * by the header search trigger (desktop pill + mobile icon). */
+  paletteOpen: boolean;
   setView: (view: AppView) => void;
   openNote: (id: string) => void;
   closeNote: () => void;
   setCaptureOpen: (open: boolean) => void;
   setBulkSelectMode: (active: boolean) => void;
+  setPaletteOpen: (open: boolean) => void;
   setFilters: (patch: Partial<LibraryFiltersState>) => void;
   resetFilters: () => void;
 }
@@ -142,6 +146,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   captureOpen: false,
   filters: { ...defaultLibraryFilters },
   bulkSelectMode: false,
+  // UX-B3 — the unified ⌘K palette starts closed (deterministic SSR value).
+  paletteOpen: false,
 
   setView: (view) => {
     // Leaving the library always ends bulk selection.
@@ -160,6 +166,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   closeNote: () => set({ detailNoteId: null }),
   setCaptureOpen: (open) => set({ captureOpen: open }),
   setBulkSelectMode: (active) => set({ bulkSelectMode: active }),
+  setPaletteOpen: (open) => set({ paletteOpen: open }),
 
   setFilters: (patch) => {
     set((state) => {
