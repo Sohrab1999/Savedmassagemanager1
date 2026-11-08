@@ -191,6 +191,11 @@ export const en = {
   "tags.remove": "Remove tag {name}",
   "note.detail.description": "My description",
   "note.detail.descriptionPlaceholder": "Write a personal note about this item…",
+  // UX-B2 (T-2) — view-first sheet: the explicit edit-session cue + honest
+  // zero states for the read-only rows.
+  "note.detail.editHint": "Editing — changes apply only when you save.",
+  "note.detail.noTags": "No tags yet",
+  "note.detail.noDescription": "No description yet",
   "note.detail.saveDescription": "Save description",
   "note.detail.descriptionSaved": "Description saved",
   "note.detail.favorite": "Favorite",
@@ -553,6 +558,10 @@ export const fa: Record<I18nKey, string> = {
   "note.detail.description": "توضیح من",
   "note.detail.descriptionPlaceholder": "یادداشت شخصی خود را دربارهٔ این مورد بنویسید…",
   "note.detail.saveDescription": "ذخیرهٔ توضیح",
+  // UX-B2 (T-2) — sheet دید-محور: نشانهٔ صریح جلسهٔ ویرایش + حالت‌های خالی صادقانه
+  "note.detail.editHint": "ویرایش فعال — تغییرات فقط با «ذخیره» اعمال می‌شوند.",
+  "note.detail.noTags": "بدون برچسب",
+  "note.detail.noDescription": "توضیحی نوشته نشده",
   "note.detail.descriptionSaved": "توضیح ذخیره شد",
   "note.detail.favorite": "علاقه‌مندی",
   "note.detail.archive": "بایگانی",

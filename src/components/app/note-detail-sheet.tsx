@@ -43,7 +43,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator as SeparatorUi } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { TYPE_META, localizedCategoryName } from "@/components/app/meta";
+import { TYPE_META, iconByName, localizedCategoryName } from "@/components/app/meta";
 import { TagChipsInput } from "@/components/app/tag-chips-input";
 import {
   useNote,
@@ -194,25 +194,35 @@ export function NoteDetailSheet() {
   const note = noteQuery.data;
   const categories = categoriesQuery.data?.items ?? [];
   const allTags = tagsQuery.data?.items ?? [];
+  // UX-B2 — resolved once for the view-mode chip.
+  const viewCategory =
+    note && note.categoryId
+      ? categories.find((category) => category.id === note.categoryId)
+      : undefined;
 
-  const [description, setDescription] = useState("");
-  const [descriptionDirty, setDescriptionDirty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  // S4 — title/content editor state (edit → save/cancel in the sheet).
+  // UX-B2 (T-2) — the WHOLE sheet is view-first: title/content AND
+  // category/tags/description share ONE explicit edit session with a single
+  // save/cancel contract. Nothing is editable in view mode (no accidental
+  // edits); «ویرایش» is the only entry.
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  const [editCategoryId, setEditCategoryId] = useState<string>("none");
+  const [editTagNames, setEditTagNames] = useState<string[]>([]);
+  const [editDescription, setEditDescription] = useState("");
 
-  // Reset the description/edit forms whenever a different note is opened
-  // (render-phase state adjustment, per React docs).
+  // Reset the edit forms whenever a different note is opened (render-phase
+  // state adjustment, per React docs) — and always land in VIEW mode.
   const [lastNoteId, setLastNoteId] = useState<string | null>(null);
   if (note && note.id !== lastNoteId) {
     setLastNoteId(note.id);
-    setDescription(note.description ?? "");
-    setDescriptionDirty(false);
     setEditing(false);
     setEditTitle(note.title);
     setEditContent(note.content ?? "");
+    setEditCategoryId(note.categoryId ?? "none");
+    setEditTagNames(note.tags.map((tag) => tag.name));
+    setEditDescription(note.description ?? "");
   }
 
   const patchNote = async (patch: Parameters<typeof updateNote.mutateAsync>[0]["patch"]) => {
@@ -226,13 +236,8 @@ export function NoteDetailSheet() {
     }
   };
 
-  // S2 — ONE tag-entry UX shared with quick capture: the shared chip input
-  // hands us the full new name list; a single updateNote patch applies it.
-  // Both demo (Prisma connectOrCreate) and cloud (resolveTagRefs) create
-  // missing tags from tagNames, so no pre-creation step is needed here.
-  const handleTagsChange = (names: string[]) => {
-    void patchNote({ tagNames: names });
-  };
+  // S2 — ONE tag-entry UX shared with quick capture. In the B2 edit session
+  // the chip input is LOCAL state; the change is committed only by «ذخیره».
 
   const copyContent = async () => {
     if (!note) return;
@@ -246,14 +251,36 @@ export function NoteDetailSheet() {
     }
   };
 
-  // S4 — save the edited title (and content for text-bearing notes).
+  // S4 + UX-B2 — ONE save for the whole edit session: title (+ content for
+  // text-bearing notes) AND category AND tags AND description.
   const canEditContent = note?.type === "text" || note?.content !== null;
+  const enterEdit = () => {
+    if (!note) return;
+    setEditTitle(note.title);
+    setEditContent(note.content ?? "");
+    setEditCategoryId(note.categoryId ?? "none");
+    setEditTagNames(note.tags.map((tag) => tag.name));
+    setEditDescription(note.description ?? "");
+    setEditing(true);
+  };
+  const cancelEdit = () => {
+    if (!note) return;
+    setEditTitle(note.title);
+    setEditContent(note.content ?? "");
+    setEditCategoryId(note.categoryId ?? "none");
+    setEditTagNames(note.tags.map((tag) => tag.name));
+    setEditDescription(note.description ?? "");
+    setEditing(false);
+  };
   const saveEdit = async () => {
     if (!note) return;
     const title = editTitle.trim();
     if (!title) return;
     const patch: Parameters<typeof updateNote.mutateAsync>[0]["patch"] = {
       title,
+      categoryId: editCategoryId === "none" ? null : editCategoryId,
+      tagNames: editTagNames,
+      description: editDescription.trim() || null,
     };
     if (canEditContent) {
       const content = editContent.trim();
@@ -332,11 +359,7 @@ export function NoteDetailSheet() {
                   className="size-9"
                   aria-label={t("common.cancel")}
                   title={t("common.cancel")}
-                  onClick={() => {
-                    setEditing(false);
-                    setEditTitle(note.title);
-                    setEditContent(note.content ?? "");
-                  }}
+                  onClick={cancelEdit}
                 >
                   <X className="size-4" aria-hidden="true" />
                 </Button>
@@ -347,11 +370,7 @@ export function NoteDetailSheet() {
                   className="size-9"
                   aria-label={t("common.edit")}
                   title={t("common.edit")}
-                  onClick={() => {
-                    setEditTitle(note.title);
-                    setEditContent(note.content ?? "");
-                    setEditing(true);
-                  }}
+                  onClick={enterEdit}
                 >
                   <Pencil className="size-4" aria-hidden="true" />
                 </Button>
@@ -374,6 +393,13 @@ export function NoteDetailSheet() {
               </div>
               {editing ? (
                 <div className="space-y-2">
+                  {/* UX-B2 — explicit edit-mode cue (DoD: no accidental edits) */}
+                  <p
+                    role="status"
+                    className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-medium text-primary"
+                  >
+                    {t("note.detail.editHint")}
+                  </p>
                   <Input
                     value={editTitle}
                     onChange={(event) => setEditTitle(event.target.value)}
@@ -406,11 +432,7 @@ export function NoteDetailSheet() {
                       variant="outline"
                       size="sm"
                       className="h-8"
-                      onClick={() => {
-                        setEditing(false);
-                        setEditTitle(note.title);
-                        setEditContent(note.content ?? "");
-                      }}
+                      onClick={cancelEdit}
                     >
                       {t("common.cancel")}
                     </Button>
@@ -444,85 +466,117 @@ export function NoteDetailSheet() {
               </div>
             </div>
 
+            {/* UX-B2 (T-2) — view-first: category/tags/description render
+                READ-ONLY in view mode; they become editable ONLY inside the
+                explicit edit session above (one save/cancel contract). */}
             {/* Category */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
                 {t("note.detail.category")}
               </p>
-              <Select
-                value={note.categoryId ?? "none"}
-                onValueChange={(value) =>
-                  patchNote({ categoryId: value === "none" ? null : value })
-                }
-              >
-                <SelectTrigger className="w-full" aria-label={t("note.detail.category")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("note.detail.uncategorized")}</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {localizedCategoryName(category, locale)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {editing ? (
+                <Select
+                  value={editCategoryId}
+                  onValueChange={setEditCategoryId}
+                >
+                  <SelectTrigger
+                    className="w-full"
+                    aria-label={t("note.detail.category")}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t("note.detail.uncategorized")}</SelectItem>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {localizedCategoryName(category, locale)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : viewCategory ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border bg-accent/40 px-2.5 py-1 text-xs font-medium">
+                  {(() => {
+                    const Icon = iconByName(viewCategory.icon);
+                    return Icon ? (
+                      <Icon className="size-3.5" aria-hidden="true" />
+                    ) : null;
+                  })()}
+                  {localizedCategoryName(viewCategory, locale)}
+                </span>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t("note.detail.uncategorized")}
+                </p>
+              )}
             </div>
 
-            {/* Tags — S2 shared chip input (same UX as quick capture) */}
+            {/* Tags — S2 shared chip input (edit mode only; view = read-only chips) */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
                 {t("note.detail.tags")}
               </p>
-              <TagChipsInput
-                tags={note.tags.map((tag) => tag.name)}
-                onChange={handleTagsChange}
-                suggestions={allTags.map((tag) => ({
-                  name: tag.name,
-                  noteCount: tag.noteCount,
-                }))}
-                ariaLabel={t("note.detail.tags")}
-              />
+              {editing ? (
+                <TagChipsInput
+                  tags={editTagNames}
+                  onChange={setEditTagNames}
+                  suggestions={allTags.map((tag) => ({
+                    name: tag.name,
+                    noteCount: tag.noteCount,
+                  }))}
+                  ariaLabel={t("note.detail.tags")}
+                />
+              ) : note.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {note.tags.map((tag) => (
+                    <Badge
+                      key={tag.id}
+                      variant="secondary"
+                      className="rounded-full"
+                    >
+                      {tag.name}
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t("note.detail.noTags")}
+                </p>
+              )}
             </div>
 
-            {/* Editable description */}
+            {/* Description (edit mode only; view = read-only paragraph) */}
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">
                 {t("note.detail.description")}
               </p>
-              <Textarea
-                value={description}
-                onChange={(event) => {
-                  setDescription(event.target.value);
-                  setDescriptionDirty(true);
-                }}
-                placeholder={t("note.detail.descriptionPlaceholder")}
-                rows={3}
-              />
-              {descriptionDirty ? (
-                <Button
-                  size="sm"
-                  className="h-8"
-                  onClick={async () => {
-                    const ok = await patchNote({ description: description.trim() || null });
-                    if (ok) {
-                      setDescriptionDirty(false);
-                      toast.success(t("note.detail.descriptionSaved"));
-                    }
-                  }}
-                >
-                  <Check className="size-4" aria-hidden="true" />
-                  {t("note.detail.saveDescription")}
-                </Button>
-              ) : null}
+              {editing ? (
+                <Textarea
+                  value={editDescription}
+                  onChange={(event) => setEditDescription(event.target.value)}
+                  placeholder={t("note.detail.descriptionPlaceholder")}
+                  aria-label={t("note.detail.description")}
+                  rows={3}
+                />
+              ) : note.description ? (
+                <p className="whitespace-pre-wrap rounded-xl bg-secondary p-3 text-sm leading-6 text-secondary-foreground">
+                  {note.description}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t("note.detail.noDescription")}
+                </p>
+              )}
             </div>
 
             {/* N6 — related notes: deterministic co-occurrence, NO AI; the
                 section only renders when a genuine shared tag/category
-                exists (single-item library stays clean). */}
-            <RelatedNotes currentId={note.id} />
+                exists (single-item library stays clean). Hidden during the
+                edit session (B2). */}
+            {!editing ? <RelatedNotes currentId={note.id} /> : null}
 
-            {/* Actions */}
+            {/* Actions (view mode only — the edit session has save/cancel) */}
+            {!editing ? (
             <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
               {note.content || note.url ? (
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={copyContent}>
@@ -561,6 +615,7 @@ export function NoteDetailSheet() {
                 </Button>
               )}
             </div>
+            ) : null}
           </div>
         )}
       </SheetContent>
