@@ -56,3 +56,6 @@ server.log
 /db/
 *.db
 tool-results/
+
+# Platform IM dropbox — chat-paste artifacts are NOT project state (kept on disk, recoverable in history)
+upload/
