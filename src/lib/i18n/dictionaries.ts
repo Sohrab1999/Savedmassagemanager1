@@ -55,6 +55,13 @@ export const en = {
   "dashboard.inbox.zeroTitle": "Inbox is clear",
   "dashboard.inbox.zero": "Everything is categorized — nice and tidy!",
 
+  // N7 — resurfacing (v1: oldest-first, ≥30 days, no AI, off-switchable)
+  "dashboard.resurface.title": "From your older saves",
+  "dashboard.resurface.hint": "A saved item that may deserve a revisit",
+  "dashboard.resurface.another": "One more",
+  "dashboard.resurface.savedAgo": "Saved {ago}",
+  "a11y.resurface.another": "Show the next older item",
+
   "type.text": "Text",
   "type.link": "Link",
   "type.image": "Image",
@@ -182,6 +189,10 @@ export const en = {
   "note.detail.copyContent": "Copy content",
   "note.detail.changesSaved": "Changes saved",
 
+  // N6 — related notes (deterministic co-occurrence, honestly labelled)
+  "note.related.title": "Related",
+  "note.related.noAi": "No AI",
+
   "capture.title": "Quick capture",
   "capture.typeLabel": "Type",
   "capture.titleLabel": "Title",
@@ -263,6 +274,14 @@ export const en = {
   "settings.undoRate": "Undo rate (deletes)",
   "settings.undoRate.value": "{undone} of {total} ({percent}%)",
   "settings.undoRate.none": "No deletes yet",
+
+  // N7 — resurfacing settings (persistent per-device off-switch + honest KPI)
+  "settings.resurface.title": "Weekly resurfacing",
+  "settings.resurface.enable": "Show the resurfacing card",
+  "settings.resurface.desc": "The «From your older saves» dashboard card — one card, no external notifications, ever.",
+  "settings.resurface.rate": "Resurfacing click rate",
+  "settings.resurface.rate.value": "{clicks} of {impressions} ({percent}%)",
+  "settings.resurface.rate.none": "No resurfacing yet",
 
   "toast.error": "Something went wrong",
   "toast.noteTrashed": "Moved to trash",
@@ -372,6 +391,13 @@ export const fa: Record<I18nKey, string> = {
   "dashboard.inbox.desc": "{n} مورد بدون دسته منتظر سازمان‌دهی‌اند — یک کلیک، بعد دسته‌سازی گروهی.",
   "dashboard.inbox.zeroTitle": "صندوق ورودی خالی است",
   "dashboard.inbox.zero": "همهٔ موارد دسته‌بندی شده‌اند — تمیز!",
+
+  // N7 — بازکشف هفتگی (نسخهٔ ۱: قدیمی‌ترین‌ها، ≥۳۰ روز، بدون AI، قابل خاموشی)
+  "dashboard.resurface.title": "از ذخیره‌های قدیمی‌تان",
+  "dashboard.resurface.hint": "ذخیره‌ای که شاید وقت مرورش رسیده باشد",
+  "dashboard.resurface.another": "یکی دیگر",
+  "dashboard.resurface.savedAgo": "ذخیره‌شده {ago}",
+  "a11y.resurface.another": "نمایش آیتم قدیمی بعدی",
 
   "type.text": "متن",
   "type.link": "لینک",
@@ -500,6 +526,10 @@ export const fa: Record<I18nKey, string> = {
   "note.detail.restored": "مورد بازگردانی شد",
   "note.detail.changesSaved": "تغییرات ذخیره شد",
 
+  // N6 — یادداشت‌های مرتبط (هم‌رخدادی قطعی، برچسب صادقانه)
+  "note.related.title": "مرتبط‌ها",
+  "note.related.noAi": "بدون AI",
+
   "capture.title": "ثبت سریع",
   "capture.typeLabel": "نوع",
   "capture.titleLabel": "عنوان",
@@ -581,6 +611,14 @@ export const fa: Record<I18nKey, string> = {
   "settings.undoRate": "نرخ بازگردانی حذف‌ها",
   "settings.undoRate.value": "{undone} از {total} ({percent}٪)",
   "settings.undoRate.none": "هنوز حذفی ثبت نشده",
+
+  // N7 — تنظیمات بازکشف (کلید خاموشی ماندگار + شاخص صادقانه)
+  "settings.resurface.title": "بازکشف هفتگی",
+  "settings.resurface.enable": "نمایش کارت بازکشف",
+  "settings.resurface.desc": "کارت «از ذخیره‌های قدیمی‌تان» در داشبورد — فقط یک کارت، بدون هیچ اعلان بیرونی.",
+  "settings.resurface.rate": "نرخ کلیک بازکشف",
+  "settings.resurface.rate.value": "{clicks} از {impressions} ({percent}٪)",
+  "settings.resurface.rate.none": "هنوز بازکشفی ثبت نشده",
 
   "toast.error": "مشکلی پیش آمد",
   "toast.noteTrashed": "به سطل منتقل شد",

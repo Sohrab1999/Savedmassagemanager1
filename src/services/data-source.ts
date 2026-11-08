@@ -79,6 +79,18 @@ export const dataSource = {
   emptyTrash: (): Promise<EmptyTrashResponse> =>
     getCurrentUser() ? repository.emptyTrash() : apiRoutes.emptyTrash(),
 
+  // N6 — related notes for the detail sheet (co-occurrence, NO AI). Demo:
+  // GET /api/notes/[id]/related; cloud: pure scorer over the G1 live array.
+  relatedNotes: (id: string): Promise<NoteDTO[]> =>
+    getCurrentUser() ? repository.getRelatedNotes(id) : apiRoutes.relatedNotes(id),
+
+  // N7 — resurfacing candidates (v1: oldest-first, ≥30 days). Demo:
+  // GET /api/resurface; cloud: filter+sort over the G1 live array.
+  resurfaceCandidates: (): Promise<{ items: NoteDTO[] }> =>
+    getCurrentUser()
+      ? repository.resurfaceCandidates()
+      : apiRoutes.resurfaceCandidates(),
+
   // P3 — real file upload for «فایل/تصویر» notes (manual capture path).
   uploadFile: (file: File): Promise<UploadedFileInfo> =>
     getCurrentUser()

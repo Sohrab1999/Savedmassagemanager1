@@ -54,6 +54,7 @@ import {
   useRestoreNote,
 } from "@/hooks/queries";
 import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
+import { RelatedNotes } from "@/components/app/related-notes";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
 import { useAppStore } from "@/stores/app-store";
@@ -514,6 +515,11 @@ export function NoteDetailSheet() {
                 </Button>
               ) : null}
             </div>
+
+            {/* N6 — related notes: deterministic co-occurrence, NO AI; the
+                section only renders when a genuine shared tag/category
+                exists (single-item library stays clean). */}
+            <RelatedNotes currentId={note.id} />
 
             {/* Actions */}
             <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">

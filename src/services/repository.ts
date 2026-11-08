@@ -40,6 +40,11 @@ import {
   importTagSchema,
 } from "@/lib/domain/import-schema";
 import { normalizePersian } from "@/lib/persian";
+import { relatedNotes } from "@/lib/related";
+import {
+  RESURFACE_MIN_AGE_MS,
+  RESURFACE_POOL_LIMIT,
+} from "@/domain/types";
 import {
   AuthRequiredError,
   FS_PATHS,
@@ -1051,6 +1056,41 @@ export async function getStats(): Promise<StatsDTO> {
     })),
     recent: sortedBySaved.slice(0, 5),
   };
+}
+
+// ---------------------------------------------------------------------------
+// N6/N7 — discovery reads (cloud path): pure joins over the live G1 arrays,
+// zero extra Firestore reads.
+// ---------------------------------------------------------------------------
+
+/** N6 — related notes for the sheet: the PURE co-occurrence scorer
+ * (src/lib/related.ts — same function as the demo service) over the live
+ * non-trashed notes. [] when nothing genuinely connects. */
+export async function getRelatedNotes(id: string): Promise<NoteDTO[]> {
+  const notes = await liveNotes();
+  const current = notes.find((note) => note.id === id);
+  if (!current) return [];
+  const pool = notes.filter((note) => note.deletedAt === null);
+  return relatedNotes(current, pool);
+}
+
+/** N7 — resurfacing candidates (v1: oldest-first, ≥30 days, no schema
+ * change — recorded DoD decision). Computed from the live array; the card
+ * and its micro-events stay on the device. */
+export async function resurfaceCandidates(
+  limit: number = RESURFACE_POOL_LIMIT,
+): Promise<{ items: NoteDTO[] }> {
+  const notes = await liveNotes();
+  const cutoff = Date.now() - RESURFACE_MIN_AGE_MS;
+  const items = notes
+    .filter(
+      (note) =>
+        note.deletedAt === null &&
+        new Date(note.savedAt).getTime() <= cutoff,
+    )
+    .sort((a, b) => a.savedAt.localeCompare(b.savedAt))
+    .slice(0, Math.min(Math.max(Math.trunc(limit), 1), 20));
+  return { items };
 }
 
 // ---------------------------------------------------------------------------

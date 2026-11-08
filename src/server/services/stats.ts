@@ -1,7 +1,11 @@
 // Dashboard statistics service.
 
 import { db } from "@/lib/db";
-import type { NoteType, StatsDTO } from "@/lib/domain/types";
+import {
+  RESURFACE_MIN_AGE_MS,
+  RESURFACE_POOL_LIMIT,
+} from "@/lib/domain/types";
+import type { NoteDTO, NoteType, StatsDTO } from "@/lib/domain/types";
 import { noteInclude, toNoteDTO } from "./notes";
 
 export async function getStats(): Promise<StatsDTO> {
@@ -65,4 +69,27 @@ export async function getStats(): Promise<StatsDTO> {
     })),
     recent: recentNotes.map(toNoteDTO),
   };
+}
+
+// ---------------------------------------------------------------------------
+// N7 — resurfacing candidates (v1: oldest-first, NO lastOpenedAt field —
+// recorded DoD decision; the card copy «از ذخیره‌های قدیمی‌تان» is honest
+// about exactly this semantic)
+// ---------------------------------------------------------------------------
+
+/** Oldest non-trashed notes saved at least 30 days ago (archived included —
+ * they are the most "forgotten" surface of the library). The dashboard card
+ * shows one candidate and «یکی دیگر» walks the list; nothing is ever sent
+ * externally (no notifications — owner warning §۶ respected). */
+export async function listResurfaceCandidates(
+  limit: number = RESURFACE_POOL_LIMIT,
+): Promise<{ items: NoteDTO[] }> {
+  const cutoff = new Date(Date.now() - RESURFACE_MIN_AGE_MS);
+  const rows = await db.note.findMany({
+    where: { deletedAt: null, savedAt: { lte: cutoff } },
+    orderBy: { savedAt: "asc" },
+    take: Math.min(Math.max(Math.trunc(limit), 1), 20),
+    include: noteInclude,
+  });
+  return { items: rows.map(toNoteDTO) };
 }

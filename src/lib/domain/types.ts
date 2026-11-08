@@ -179,6 +179,15 @@ export interface EmptyTrashResponse {
 }
 
 // ---------------------------------------------------------------------------
+// N7 — resurfacing (v1: oldest-first, NO lastOpenedAt field — recorded DoD
+// decision). Shared constants: the demo service and the cloud live-array
+// path MUST agree on the candidate semantics (single source, client-safe).
+// ---------------------------------------------------------------------------
+
+export const RESURFACE_MIN_AGE_MS = 30 * 86_400_000;
+export const RESURFACE_POOL_LIMIT = 10;
+
+// ---------------------------------------------------------------------------
 // N2 — JSON import (the counterpart of /api/export)
 // ---------------------------------------------------------------------------
 

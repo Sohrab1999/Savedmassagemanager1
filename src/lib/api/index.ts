@@ -66,6 +66,18 @@ export const apiRoutes = {
   emptyTrash: () =>
     api<EmptyTrashResponse>("/api/trash", { method: "DELETE" }),
 
+  // N6 — related notes for the detail sheet (co-occurrence, NO AI; ≤3 items
+  // with a genuine shared tag/category; [] when nothing connects).
+  relatedNotes: (id: string) =>
+    api<{ items: NoteDTO[] }>(`/api/notes/${id}/related`).then(
+      (result) => result.items,
+    ),
+
+  // N7 — resurfacing candidates (v1: oldest-first, ≥30 days, no schema
+  // change — recorded DoD decision).
+  resurfaceCandidates: (limit = 10) =>
+    api<{ items: NoteDTO[] }>(`/api/resurface?limit=${limit}`),
+
   // P3 — multipart upload. NOTE: dedicated fetch (the shared `api` helper
   // always sets Content-Type: application/json, which would corrupt FormData).
   uploadFile: async (file: File): Promise<UploadedFileInfo> => {

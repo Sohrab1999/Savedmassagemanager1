@@ -209,6 +209,28 @@ export function useEmptyTrash(): Mutation<void, EmptyTrashResponse> {
   });
 }
 
+/** N6 — related notes for the open detail sheet (co-occurrence, NO AI).
+ * Scoped by the note id; the 2-second demo poll keeps it fresh when tags or
+ * the category change in the sheet (cloud mode: live-store driven). */
+export function useRelatedNotes(id: string | null) {
+  return useQuery({
+    queryKey: ["related", scopeKey(), id] as const,
+    queryFn: () => dataSource.relatedNotes(id as string),
+    enabled: Boolean(id),
+    refetchInterval: liveRefetch(),
+  });
+}
+
+/** N7 — resurfacing candidates (v1: oldest-first, ≥30 days). Dashboard-card
+ * liveness mirrors useStats (2 s demo poll; cloud = live store). */
+export function useResurfaceCandidates() {
+  return useQuery({
+    queryKey: ["resurface", scopeKey()] as const,
+    queryFn: () => dataSource.resurfaceCandidates(),
+    refetchInterval: liveRefetch(),
+  });
+}
+
 export function useCreateCategory(): Mutation<
   Parameters<typeof dataSource.createCategory>[0],
   CategoryDTO

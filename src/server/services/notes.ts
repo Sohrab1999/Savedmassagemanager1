@@ -5,6 +5,7 @@ import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { normalizePersian } from "@/lib/persian";
+import { relatedNotes, RELATED_LIMIT } from "@/lib/related";
 import { UPLOAD_DIR, isValidFileKey } from "@/server/storage";
 import type {
   CreateNoteInput,
@@ -193,6 +194,27 @@ export async function listNotes(query: ListNotesQuery): Promise<NoteListResponse
 export async function getNote(id: string): Promise<NoteDTO | null> {
   const note = await db.note.findUnique({ where: { id }, include: noteInclude });
   return note ? toNoteDTO(note) : null;
+}
+
+// ---------------------------------------------------------------------------
+// N6 — related notes (co-occurrence, NO AI — shared scorer in lib/related.ts)
+// ---------------------------------------------------------------------------
+
+/** Up to `RELATED_LIMIT` notes that genuinely share tags or a category with
+ * `id`. The pool = every non-trashed note (archived included — DoD decision);
+ * the PURE scorer in `lib/related.ts` is the single ranking source for both
+ * backends. Returns [] when nothing genuinely connects. */
+export async function getRelatedNotes(
+  id: string,
+  limit: number = RELATED_LIMIT,
+): Promise<NoteDTO[]> {
+  const current = await getNote(id);
+  if (!current) return [];
+  const pool = await db.note.findMany({
+    where: { deletedAt: null },
+    include: noteInclude,
+  });
+  return relatedNotes(current, pool.map(toNoteDTO), limit);
 }
 
 export async function createNote(

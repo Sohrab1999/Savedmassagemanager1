@@ -18,6 +18,7 @@ import {
   StatCardsSkeleton,
 } from "@/components/app/states";
 import { NoteCard } from "@/components/app/note-card";
+import { ResurfaceCard } from "@/components/app/resurface-card";
 import { iconByName, localizedCategoryName, TYPE_META } from "@/components/app/meta";
 import { useProfile, useStats } from "@/hooks/queries";
 import { useI18n } from "@/lib/i18n";
@@ -227,6 +228,11 @@ export function DashboardView() {
           </span>
         </div>
       )}
+
+      {/* N7 — resurfacing (v1: oldest-first, ≥30 days, NO schema change —
+          recorded DoD decision). One card, off-switchable in Settings,
+          zero external notifications. */}
+      <ResurfaceCard />
 
       {/* Stats — N4: cards with an equivalent library filter deep-link to it
           (total → #/library, favorites → fav=1, archived → arch=1). The
