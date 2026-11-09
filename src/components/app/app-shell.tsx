@@ -15,6 +15,7 @@ import { UndoToastHost } from "@/components/app/undo-toast";
 import { CommandPalette } from "@/components/app/command-palette";
 import { AuthGate } from "@/components/app/auth-gate";
 import { useAuth } from "@/hooks/use-auth";
+import { useShareTarget } from "@/hooks/use-share-target";
 import { realtimeStore } from "@/services/realtime";
 import { bindHashNavigation, useAppStore } from "@/stores/app-store";
 import { useI18n } from "@/lib/i18n";
@@ -42,8 +43,13 @@ export function AppShell() {
   const { t } = useI18n();
   const { authReady, user, demoMode } = useAuth();
   const queryClient = useQueryClient();
+  // F1 — Web Share Target intake (mount-once; opens the capture dialog
+  // prefilled when the page load carries `/?title=…&text=…&url=…`).
+  // Hooks run BEFORE the early returns below (compiler rule).
+  useShareTarget();
 
-  // Browser back/forward support for in-app view switching (single-route SPA).
+  // Browser back/forward support for in-app view switching (single-route SPA)
+  // + the F2 `#/capture?…` deep-link intake (bookmarklet).
   useEffect(() => bindHashNavigation(), []);
 
   // G1 — realtime bridge. ONE session-scoped listener set serves the whole

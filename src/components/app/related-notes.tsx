@@ -5,7 +5,8 @@
 // the section says so). UX-A7 sweep: the zero state is EXPLICIT — a friendly
 // EmptyState instead of silent absence — while staying honest: suggestions
 // only exist when they are REAL. Clicking a row swaps the open sheet to that
-// item (openNote contract).
+// item via the F6 related-navigation contract (openRelatedNote keeps the
+// session root so the back bar can return to the FIRST item).
 
 import { useI18n } from "@/lib/i18n";
 import { formatRelativeTime } from "@/lib/format";
@@ -16,7 +17,7 @@ import { useAppStore } from "@/stores/app-store";
 
 export function RelatedNotes({ currentId }: { currentId: string }) {
   const { t, locale } = useI18n();
-  const openNote = useAppStore((state) => state.openNote);
+  const openRelatedNote = useAppStore((state) => state.openRelatedNote);
   const relatedQuery = useRelatedNotes(currentId);
   const related = relatedQuery.data;
 
@@ -61,7 +62,7 @@ export function RelatedNotes({ currentId }: { currentId: string }) {
             <li key={item.id}>
               <button
                 type="button"
-                onClick={() => openNote(item.id)}
+                onClick={() => openRelatedNote(item.id)}
                 aria-label={`${t("a11y.openNote")}: ${item.title}`}
                 title={item.title}
                 className="flex w-full items-center gap-2.5 rounded-lg border bg-card p-2 text-start transition-colors hover:border-primary/40 hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-ring"

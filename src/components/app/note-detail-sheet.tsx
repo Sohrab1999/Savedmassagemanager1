@@ -55,6 +55,7 @@ import {
 } from "@/hooks/queries";
 import { recordDeletion, recordUndo } from "@/lib/undo-metrics";
 import { RelatedNotes } from "@/components/app/related-notes";
+import { DetailBackBar } from "@/components/app/detail-back-bar";
 import { showUndoToast } from "@/components/app/undo-toast";
 import { useI18n } from "@/lib/i18n";
 import { domainOf, formatBytes, formatDateTime, formatDuration } from "@/lib/format";
@@ -324,6 +325,11 @@ export function NoteDetailSheet() {
         <SheetTitle className="sr-only">
           {note?.title ?? t("app.name")}
         </SheetTitle>
+
+        {/* F6 (A-3.3) — the related-session back bar (depth ≥ 2): one tap
+            returns to the FIRST item of the session; also present during the
+            swapped-note loading state so the path back never disappears. */}
+        <DetailBackBar />
 
         {isLoadingSheet ? (
           <div className="space-y-4 p-4">

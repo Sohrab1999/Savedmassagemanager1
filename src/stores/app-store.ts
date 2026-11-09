@@ -1,130 +1,33 @@
 "use client";
 
 import { create } from "zustand";
-import { NOTE_TYPES, type NoteSort, type NoteType } from "@/lib/domain/types";
+import { type CapturePrefill } from "@/lib/capture/capture-prefill";
+import {
+  libraryHash,
+  parseHash,
+  replaceHash,
+} from "@/stores/hash-navigation";
+import {
+  defaultLibraryFilters,
+  type AppView,
+  type LibraryFiltersState,
+} from "@/stores/library-filters";
 
-export type AppView = "dashboard" | "library" | "categories" | "settings";
-
-export interface LibraryFiltersState {
-  q: string;
-  type: NoteType | "all";
-  categoryId: string; // 'all' | 'none' | <id>
-  tagIds: string[];
-  favorite: boolean;
-  archived: boolean;
-  /** S5 — trash view: shows ONLY soft-deleted notes. Mutually exclusive with
-   * `archived` (enforced in setFilters). */
-  trash: boolean;
-  sort: NoteSort;
-  layout: "grid" | "list";
-}
-
-export const defaultLibraryFilters: LibraryFiltersState = {
-  q: "",
-  type: "all",
-  categoryId: "all",
-  tagIds: [],
-  favorite: false,
-  archived: false,
-  trash: false,
-  sort: "newest",
-  layout: "grid",
-};
-
-const VALID_VIEWS: AppView[] = [
-  "dashboard",
-  "library",
-  "categories",
-  "settings",
-];
-const VALID_SORTS: NoteSort[] = ["newest", "oldest", "title"];
-
-function viewFromPath(raw: string): AppView {
-  return VALID_VIEWS.includes(raw as AppView) ? (raw as AppView) : "dashboard";
-}
-
-// ---------------------------------------------------------------------------
-// S3 — filters in the URL hash (#/library?q=…&type=…&cat=…&tags=…&fav=1&arch=1&sort=…)
-//
-// • Only non-default values are serialized (short, readable deep-links).
-// • `layout` stays a device preference and is never serialized.
-// • Filter changes use history.replaceState (they are refinements of the
-//   current view, not navigations — this also keeps the debounced search from
-//   flooding the history stack). View changes keep pushState, so browser
-//   back/forward remains view-level and always works.
-// • Malformed values are ignored (defaults apply) — the hash is untrusted input.
-// ---------------------------------------------------------------------------
-
-interface HashRoute {
-  view: AppView;
-  filters: LibraryFiltersState;
-}
-
-function parseHash(hash: string): HashRoute {
-  const raw = hash.replace(/^#\/?/, "");
-  const [path, query = ""] = raw.split("?");
-  const view = viewFromPath(path);
-  const filters: LibraryFiltersState = { ...defaultLibraryFilters };
-  if (view === "library" && query) {
-    const params = new URLSearchParams(query);
-    const q = params.get("q");
-    if (q !== null) filters.q = q;
-    const type = params.get("type");
-    if (type && (NOTE_TYPES as readonly string[]).includes(type)) {
-      filters.type = type as NoteType;
-    }
-    const cat = params.get("cat");
-    if (cat) filters.categoryId = cat; // 'none' or an id ('all' is omitted)
-    const tags = params.get("tags");
-    if (tags) {
-      filters.tagIds = tags.split(",").map((id) => id.trim()).filter(Boolean);
-    }
-    if (params.get("fav") === "1") filters.favorite = true;
-    if (params.get("arch") === "1") filters.archived = true;
-    // S5 — trash deep-link; mutual exclusion with archived (last wins).
-    if (params.get("trash") === "1") {
-      filters.trash = true;
-      filters.archived = false;
-    } else if (filters.archived) {
-      filters.trash = false;
-    }
-    const sort = params.get("sort");
-    if (sort && (VALID_SORTS as string[]).includes(sort)) {
-      filters.sort = sort as NoteSort;
-    }
-  }
-  return { view, filters };
-}
-
-function libraryHash(filters: LibraryFiltersState): string {
-  const params = new URLSearchParams();
-  if (filters.q) params.set("q", filters.q);
-  if (filters.type !== "all") params.set("type", filters.type);
-  if (filters.categoryId !== "all") params.set("cat", filters.categoryId);
-  if (filters.tagIds.length) params.set("tags", filters.tagIds.join(","));
-  if (filters.favorite) params.set("fav", "1");
-  if (filters.trash) params.set("trash", "1");
-  else if (filters.archived) params.set("arch", "1");
-  if (filters.sort !== "newest") params.set("sort", filters.sort);
-  const qs = params.toString();
-  return qs ? `#/library?${qs}` : "#/library";
-}
-
-function replaceHash(hash: string): void {
-  if (typeof window === "undefined") return;
-  if (window.location.hash !== hash) {
-    window.history.replaceState(null, "", hash);
-  }
-}
-
-interface AppState {
+export interface AppState {
   view: AppView;
   detailNoteId: string | null;
   /** UX-B6 — true ONLY when the sheet was opened by an explicit organize
    * intent (the capture-success toast CTA); the sheet then lands directly in
    * edit mode. Regular opens never set it. */
   detailAutoEdit: boolean;
+  /** F6 — the FIRST item of the current sheet session. Non-null while the
+   * user is browsing related items inside the sheet; the back bar returns
+   * exactly here. A regular openNote() starts a fresh session (null). */
+  detailRootId: string | null;
   captureOpen: boolean;
+  /** F1/F2 — the external-channel payload (share target / `#/capture`).
+   * Consumed by QuickCapture on open; cleared on close/plain opens. */
+  capturePrefill: CapturePrefill | null;
   filters: LibraryFiltersState;
   /** S6 — bulk-selection mode lives here so the mobile capture FAB can hide
    * itself while selecting (the two flows must not overlap). */
@@ -134,8 +37,17 @@ interface AppState {
   paletteOpen: boolean;
   setView: (view: AppView) => void;
   openNote: (id: string, opts?: { autoEdit?: boolean }) => void;
+  /** F6 — opening a RELATED item keeps the session root; depth ≥2 shows the
+   * back bar. The B6 transition flag is always cleared here (contract). */
+  openRelatedNote: (id: string) => void;
+  /** F6 — one tap back to the FIRST item of the session (exact per DoD). */
+  returnToDetailRoot: () => void;
   closeNote: () => void;
   setCaptureOpen: (open: boolean) => void;
+  /** F1/F2 — open the capture dialog carrying an external-channel prefill.
+   * The ONLY path that may set a payload; plain opens/closes clear it, so a
+   * share payload can never leak into a later dialog session. */
+  openCapture: (prefill?: CapturePrefill) => void;
   setBulkSelectMode: (active: boolean) => void;
   setPaletteOpen: (open: boolean) => void;
   setFilters: (patch: Partial<LibraryFiltersState>) => void;
@@ -149,7 +61,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   detailNoteId: null,
   // UX-B6 — the organize bridge is OFF by default (deterministic SSR value).
   detailAutoEdit: false,
+  // F6 — no related-session root until a related item is opened in-session.
+  detailRootId: null,
   captureOpen: false,
+  capturePrefill: null,
   filters: { ...defaultLibraryFilters },
   bulkSelectMode: false,
   // UX-B3 — the unified ⌘K palette starts closed (deterministic SSR value).
@@ -169,9 +84,41 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   openNote: (id, opts) =>
-    set({ detailNoteId: id, detailAutoEdit: opts?.autoEdit === true }),
-  closeNote: () => set({ detailNoteId: null, detailAutoEdit: false }),
-  setCaptureOpen: (open) => set({ captureOpen: open }),
+    set({
+      detailNoteId: id,
+      detailAutoEdit: opts?.autoEdit === true,
+      // F6 — every regular open starts a NEW sheet session.
+      detailRootId: null,
+    }),
+
+  openRelatedNote: (id) =>
+    set((state) => ({
+      detailNoteId: id,
+      // F6 — the B6 flag is a single-transition intent; navigating deeper
+      // always lands view-first (B2 contract preserved).
+      detailAutoEdit: false,
+      detailRootId: state.detailRootId ?? state.detailNoteId,
+    })),
+
+  returnToDetailRoot: () =>
+    set((state) =>
+      state.detailRootId
+        ? { detailNoteId: state.detailRootId, detailAutoEdit: false }
+        : {},
+    ),
+
+  closeNote: () =>
+    set({ detailNoteId: null, detailAutoEdit: false, detailRootId: null }),
+
+  setCaptureOpen: (open) =>
+    // Plain opens (FAB/header/palette) and closes both clear any payload —
+    // this is what guarantees the prefill is applied EXACTLY once (the
+    // render-phase transition in QuickCapture never writes to the store).
+    set({ captureOpen: open, capturePrefill: null }),
+
+  openCapture: (prefill) =>
+    set({ captureOpen: true, capturePrefill: prefill ?? null }),
+
   setBulkSelectMode: (active) => set({ bulkSelectMode: active }),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
 
@@ -198,20 +145,33 @@ export const useAppStore = create<AppState>((set, get) => ({
 }));
 
 /** Re-sync store view + filters when the user navigates with browser
- * back/forward, opens a deep-link, or refreshes. */
+ * back/forward, opens a deep-link, or refreshes. F1/F2 — a `#/capture?…`
+ * hash (share/bookmarklet) instead OPENS the capture dialog (prefilled or
+ * plain) and the hash is consumed, so back/forward and refresh never
+ * re-trigger it. The current view/filters are kept untouched for capture
+ * routes (capture is an overlay, not a view change). */
 export function bindHashNavigation(): () => void {
   if (typeof window === "undefined") return () => undefined;
-  // Align with the URL after hydration (external-store update, no React setState).
-  const initial = parseHash(window.location.hash);
-  useAppStore.setState({ view: initial.view, filters: initial.filters });
-  const onHashChange = () => {
-    const next = parseHash(window.location.hash);
-    useAppStore.setState({ view: next.view, filters: next.filters });
+  const applyRoute = () => {
+    const route = parseHash(window.location.hash);
+    if (route.capture) {
+      useAppStore.getState().openCapture(route.capture);
+      replaceHash("#/");
+      return;
+    }
+    useAppStore.setState({ view: route.view, filters: route.filters });
   };
-  window.addEventListener("hashchange", onHashChange);
-  window.addEventListener("popstate", onHashChange);
+  applyRoute();
+  window.addEventListener("hashchange", applyRoute);
+  window.addEventListener("popstate", applyRoute);
   return () => {
-    window.removeEventListener("hashchange", onHashChange);
-    window.removeEventListener("popstate", onHashChange);
+    window.removeEventListener("hashchange", applyRoute);
+    window.removeEventListener("popstate", applyRoute);
   };
 }
+
+// Re-exported for existing import sites (`AppView`, `LibraryFiltersState`,
+// `defaultLibraryFilters` were previously declared here).
+export { defaultLibraryFilters } from "@/stores/library-filters";
+export type { AppView, LibraryFiltersState } from "@/stores/library-filters";
+export type { CapturePrefill } from "@/lib/capture/capture-prefill";
