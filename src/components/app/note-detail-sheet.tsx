@@ -386,7 +386,9 @@ export function NoteDetailSheet() {
                     size="icon"
                     className="size-9"
                     aria-label={note.isArchived ? t("note.detail.unarchive") : t("note.detail.archive")}
-                    title={note.isArchived ? t("note.detail.unarchive") : t("note.detail.archive")}
+                    // UX-B7 (A-3.4) — the tooltip carries the SEMANTICS, not
+                    // just a name echo: archive = out of sight but reachable.
+                    title={note.isArchived ? t("note.detail.unarchive") : t("note.detail.archiveHint")}
                     onClick={() => patchNote({ isArchived: !note.isArchived })}
                   >
                     {note.isArchived ? (
@@ -614,6 +616,9 @@ export function NoteDetailSheet() {
                   variant="outline"
                   size="sm"
                   className="ms-auto gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  // UX-B7 (A-3.4) — the touch point explains the SOFT delete:
+                  // 7 restorable days, not a permanent loss (P3 honesty).
+                  title={t("note.detail.deleteHint")}
                   onClick={() => setConfirmDelete(true)}
                 >
                   <Trash2 className="size-4" aria-hidden="true" />

@@ -6,6 +6,19 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-09
 
+### Step 42 — ROADMAP #3 فاز B: UX-B7 COMPLETE (RTL directional icons + the archive/trash scent, A-3.4; 16/16 runbook + N10 23/23; SNAPSHOT v42) — the THIRD item of the standing step-40 owner order; **فاز B now COMPLETE except the D18-gated B5**
+
+- **Trigger:** the SAME standing step-40 owner order (B4 ✓ → B6 ✓ → **UX-B7, this step** → فاز C; UX-B5 blocked on D18) + the standing 10-point persistence mandate.
+- **Skills applied (ECC):** `ecc-verification-loop` (NEW 16-check runbook with a STATIC code scan + a live computed-style DOM scan), `ecc-frontend-a11y` (title tooltips carry semantics, honest hint lines at the touch points), `ecc-change-impact` (2 src files + i18n only; ZERO behavioral change — pure explanation/scent layer).
+- **UX-B7 — implemented:**
+  - **Directional-icon audit (two channels):** STATIC — `rg` block-wise scan of `<ChevronRight|ChevronLeft|ArrowRight|ArrowLeft|MoveRight|MoveLeft>` JSX usages in `src/components/app/` → EXACTLY ONE usage (the UX-A2 dashboard StatCard chevron) and it carries `rtl:-scale-x-100`; ZERO un-flipped usages (`ArrowLeftRight` is symmetric and excluded; ArrowUp/Down are keyboard handlers). LIVE — all 3 rendered dashboard chevrons compute `getComputedStyle().scale === "-1 1"` in RTL; **Tailwind v4 compiles `-scale-x-100` into the `scale` PROPERTY (transform stays "none") — the scan pattern for the future reads BOTH channels** (recorded in the runbook).
+  - **Archive-vs-trash scent at the touch points (A-3.4):** the B1 filter panel's `FilterToggleRow` gained an optional muted `hint` line — Archive: «از چشم خارج می‌شود؛ از همین فیلتر همیشه در دسترس است.» / "Out of sight — always reachable via this filter."; Trash: «۷ روز فرصت بازگردانی؛ بعد حذف دائمی می‌شود.» / "Restorable for 7 days, then permanently deleted." (matches the N5 7-day retention). In the sheet: the archive toggle's `title` now explains the SEMANTICS (`note.detail.archiveHint`) instead of echoing the name, and the delete button's `title` explains the soft-delete (`note.detail.deleteHint` — 7 restorable days, one-click restore; P3 honesty).
+  - **i18n:** +4 keys (2 filter hints + 2 sheet hints) fa+en → **333/333 parity**.
+- **Verification — `scripts/verify-uxb7.sh` (NEW runbook, 16 checks):** **16/16 PASS** — static scan ×3 (one file / the flip pattern / zero un-flipped block-wise); RTL DOM scan ×2 (3 chevrons, all computed flipped; the A2 pattern exists); fa hints ×3 (both lines visible INSIDE the state section next to their switches); sheet tooltips ×2 (archive + delete titles carry the semantics); the deterministic en switch via the documented `savedbox.locale` persistence key + reload ×4 (lang=en; both hints render in the same places); console 0; canonical re-seed 21. **Evidence: 3 `b7-*.png`** (dashboard-rtl-fa + filter-hints fa/en @1280). **Full regression: `verify-n10.sh` 23/23 PASS.**
+- **Gates:** lint exit 0 · tsc 0 errors under `src/` · i18n 333/333.
+- **Files:** `src/components/app/views/library-view.tsx` (FilterToggleRow hint + wiring), `src/components/app/note-detail-sheet.tsx` (semantic tooltips), `src/lib/i18n/dictionaries.ts` (+4), `scripts/verify-uxb7.sh` (NEW), `roadmaps/UIUX-OVERHAUL-ROADMAP.md` (v1.8), `roadmaps/evidence/b7-*.png` ×3, `worklog.md`, `docs/SNAPSHOT.md` (v42), `docs/ROADMAP.md`.
+- **Next (same standing order):** **فاز C (UX-C1…C6)** — each a full Protocol step. UX-B5 stays blocked until the owner registers D18.
+
 ### Step 41 — ROADMAP #3 فاز B: UX-B6 COMPLETE (the capture→organize bridge, A-3.2; 16/16 runbook + N10 23/23; SNAPSHOT v41) — the SECOND item of the standing step-40 owner order
 
 - **Trigger:** the SAME standing step-40 owner order (UX-B4 ✓ → **UX-B6, this step** → UX-B7 → فاز C; UX-B5 blocked on D18) + the standing 10-point persistence mandate.

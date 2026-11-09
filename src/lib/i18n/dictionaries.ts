@@ -91,6 +91,11 @@ export const en = {
   // mobile) replaces the state-chip strip; sections follow the T-6 IA split.
   "library.filters.button": "Filters",
   "library.filters.sectionState": "Status & places",
+  // UX-B7 (A-3.4) — honest archive-vs-trash scent at the touch points.
+  "library.filters.archiveHint": "Out of sight — always reachable via this filter.",
+  "library.filters.trashHint": "Restorable for 7 days, then permanently deleted.",
+  "note.detail.archiveHint": "Archive: out of sight, always reachable from the Archived filter.",
+  "note.detail.deleteHint": "Delete: stays in trash for 7 days — one click restores it.",
   "library.filters.sectionOrganize": "Category & tags",
   "library.filters.apply": "Show results",
   "a11y.filtersButton": "Open filters",
@@ -474,6 +479,11 @@ export const fa: Record<I18nKey, string> = {
   // در موبایل) جایگزین ردیف chipهای وضعیت؛ بخش‌بندی مطابق تفکیک IA تی‌-۶.
   "library.filters.button": "فیلترها",
   "library.filters.sectionState": "وضعیت و جایگاه‌ها",
+  // UX-B7 (A-3.4) — بوی بایگانی/سطل درست در نقاط لمسی.
+  "library.filters.archiveHint": "از چشم خارج می‌شود؛ از همین فیلتر همیشه در دسترس است.",
+  "library.filters.trashHint": "۷ روز فرصت بازگردانی؛ بعد حذف دائمی می‌شود.",
+  "note.detail.archiveHint": "بایگانی: از چشم خارج، همیشه از فیلتر بایگانی در دسترس است.",
+  "note.detail.deleteHint": "حذف: ۷ روز در سطل می‌ماند؛ با یک کلیک بازمی‌گردد.",
   "library.filters.sectionOrganize": "دسته و برچسب‌ها",
   "library.filters.apply": "نمایش نتایج",
   "a11y.filtersButton": "باز کردن فیلترها",

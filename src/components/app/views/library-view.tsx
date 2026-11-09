@@ -1250,12 +1250,14 @@ function FilterPanelContent({
         <FilterToggleRow
           icon={Archive}
           label={t("library.filters.archived")}
+          hint={t("library.filters.archiveHint")}
           checked={filters.archived}
           onToggle={() => setFilters({ archived: !filters.archived })}
         />
         <FilterToggleRow
           icon={Trash2}
           label={t("library.filters.trash")}
+          hint={t("library.filters.trashHint")}
           checked={filters.trash}
           onToggle={() => setFilters({ trash: !filters.trash })}
         />
@@ -1328,15 +1330,20 @@ function FilterPanelContent({
 }
 
 /** UX-B1 — one accessible switch row (role="switch") with a directional
- * thumb (rtl/ltr both covered). The whole row is the hit target. */
+ * thumb (rtl/ltr both covered). The whole row is the hit target.
+ * UX-B7 (A-3.4) — an optional muted `hint` line gives the archive-vs-trash
+ * distinction right at the touch point (بایگانی = out of sight; سطل = 7-day
+ * countdown to permanent deletion). */
 function FilterToggleRow({
   icon: Icon,
   label,
+  hint,
   checked,
   onToggle,
 }: {
   icon: LucideIcon;
   label: string;
+  hint?: string;
   checked: boolean;
   onToggle: () => void;
 }) {
@@ -1348,8 +1355,15 @@ function FilterToggleRow({
       onClick={onToggle}
       className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-start text-xs transition-colors hover:bg-accent"
     >
-      <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0 flex-1 font-medium">{label}</span>
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{label}</span>
+        {hint ? (
+          <span className="mt-0.5 block text-[10.5px] leading-4 font-normal text-muted-foreground">
+            {hint}
+          </span>
+        ) : null}
+      </span>
       <span
         aria-hidden="true"
         className={cn(
