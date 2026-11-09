@@ -1039,7 +1039,7 @@ export function LibraryView() {
           <AlertDialogFooter>
             <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive"
               onClick={(event) => {
                 // Keep the dialog open until the mutation settles.
                 event.preventDefault();
@@ -1110,7 +1110,7 @@ export function LibraryView() {
                   {t("common.cancel")}
                 </AlertDialogCancel>
                 <AlertDialogAction
-                  className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive"
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 focus-visible:ring-destructive"
                   onClick={(event) => {
                     event.preventDefault();
                     setEmptyStep(0);
