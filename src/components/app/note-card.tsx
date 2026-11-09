@@ -406,7 +406,12 @@ export function NoteCard({
             onOpen(note.id);
           }
         }}
-        className="flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-2.5 text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring"
+        className={cn(
+          "flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card p-2.5 text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring",
+          // UX-B4 (T-4) — a selected card must LOOK selected, not just carry
+          // the small checkbox.
+          selected && "border-primary/60 bg-primary/5 ring-2 ring-primary/25",
+        )}
       >
         {selectionMode ? (
           <SelectToggle
@@ -469,7 +474,11 @@ export function NoteCard({
           onOpen(note.id);
         }
       }}
-      className="group flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring"
+      className={cn(
+        "group flex w-full cursor-pointer flex-col overflow-hidden rounded-xl border bg-card text-start shadow-xs transition-all hover:border-primary/40 hover:shadow-md focus-visible:outline-2 focus-visible:outline-ring",
+        // UX-B4 (T-4) — same selected treatment on the grid card.
+        selected && "border-primary/60 ring-2 ring-primary/25",
+      )}
     >
       <div className="relative h-32 w-full overflow-hidden">
         <Thumbnail note={note} variant="media" highlight={highlight} />

@@ -109,6 +109,12 @@ export const en = {
   "library.loadMore": "Load more ({n} remaining)",
 
   // S6 — bulk operations
+  // UX-B4 (T-4) — one-time entry coach-mark + count-bar clarity + select-all.
+  "library.bulk.coach.title": "Bulk selection",
+  "library.bulk.coach.desc": "Tap the checklist button, select several items, then categorize, archive or delete them in one action.",
+  "library.bulk.coach.dismiss": "Got it",
+  "library.bulk.selectAll": "Select all",
+  "library.bulk.deselectAll": "Deselect all",
   "library.bulk.select": "Select items",
   "library.bulk.exit": "Exit selection",
   "library.bulk.selected": "{n} selected",
@@ -484,6 +490,12 @@ export const fa: Record<I18nKey, string> = {
   "library.loadMore": "نمایش بیشتر ({n} مورد باقی‌مانده)",
 
   // S6 — عملیات گروهی
+  // UX-B4 (T-4) — کوچ‌مارک یک‌بارمصرف ورود + شفافیت نوار شمارش + انتخاب همه.
+  "library.bulk.coach.title": "انتخاب گروهی",
+  "library.bulk.coach.desc": "دکمهٔ چک‌لیست را بزن، چند مورد را انتخاب کن و بعد همه را یکجا دسته‌بندی، بایگانی یا حذف کن.",
+  "library.bulk.coach.dismiss": "متوجه شدم",
+  "library.bulk.selectAll": "انتخاب همه",
+  "library.bulk.deselectAll": "هیچ‌کدام",
   "library.bulk.select": "انتخاب موارد",
   "library.bulk.exit": "خروج از انتخاب",
   "library.bulk.selected": "{n} مورد انتخاب شد",

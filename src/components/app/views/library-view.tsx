@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Check,
+  CheckCheck,
   ChevronDown,
   Filter,
   FolderOpen,
@@ -15,6 +16,7 @@ import {
   Plus,
   Search,
   SearchX,
+  Square,
   Star,
   Trash2,
   X,
@@ -112,6 +114,10 @@ export function LibraryView() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // The categorize Select resets to its placeholder after every action.
   const [bulkCategoryId, setBulkCategoryId] = useState("");
+  // UX-B4 (T-4) — ONE-time bulk coach-mark. Shows once when the library has
+  // enough items to make bulk work meaningful; ANY dismissal (button, outside
+  // click, entering bulk mode) persists the flag so it never nags again.
+  const [bulkCoachOpen, setBulkCoachOpen] = useState(false);
   // N5 — pending permanent-delete targets: a single note (causal confirm) or
   // the whole trash (MANDATORY two-step confirm: 1 = scope, 2 = final).
   const [purgeTarget, setPurgeTarget] = useState<NoteDTO | null>(null);
@@ -127,6 +133,17 @@ export function LibraryView() {
     setSelectedIds(new Set());
     setBulkCategoryId("");
   }, [setBulkSelectMode]);
+
+  // UX-B4 (T-4) — dismissing the coach-mark in ANY way is sticky forever.
+  const dismissBulkCoach = useCallback(() => {
+    setBulkCoachOpen(false);
+    try {
+      localStorage.setItem("savedbox.bulk.coach.v1", "1");
+    } catch {
+      /* storage unavailable (private mode) — the coach simply may re-appear;
+         never worth blocking the flow over. */
+    }
+  }, []);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((current) => {
@@ -244,6 +261,48 @@ export function LibraryView() {
   const categories = categoriesQuery.data?.items ?? [];
   const tags = tagsQuery.data?.items ?? [];
   const remaining = Math.max(total - items.length, 0);
+
+  // UX-B4 (T-4) — open the coach-mark once, shortly after the library has
+  // items worth bulk-editing. Entering bulk mode (or any dismissal) latches
+  // the flag, so this never fires again afterwards.
+  useEffect(() => {
+    if (bulkSelectMode) return;
+    if (items.length < 3) return;
+    try {
+      if (localStorage.getItem("savedbox.bulk.coach.v1") === "1") return;
+    } catch {
+      return;
+    }
+    const timer = setTimeout(() => setBulkCoachOpen(true), 900);
+    return () => clearTimeout(timer);
+  }, [bulkSelectMode, items.length]);
+
+  // UX-B4 (T-4) — safe exit: Escape ends bulk selection, but ONLY when no
+  // modal owns the keystroke (confirm dialogs / capture / sheet / palette
+  // render [role=dialog]; their Escape must close THEM, never wipe the
+  // user's selection from beneath them).
+  useEffect(() => {
+    if (!bulkSelectMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector("[role='dialog']")) return;
+      exitSelection();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [bulkSelectMode, exitSelection]);
+
+  // UX-B4 (T-4) — select-all / deselect-all over the CURRENTLY VISIBLE items
+  // (respecting active filters): the full select → apply → exit flow in the
+  // count-bearing action bar, never touching items outside the view.
+  const allSelected = items.length > 0 && items.every((note) => selectedIds.has(note.id));
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((current) =>
+      items.length > 0 && items.every((note) => current.has(note.id))
+        ? new Set<string>()
+        : new Set(items.map((note) => note.id)),
+    );
+  }, [items]);
 
   /** N5 — permanent delete of ONE trashed note. Never feeds the S5 undo
    * metric (irreversible) and carries its own causal confirm dialog. */
@@ -689,28 +748,64 @@ export function LibraryView() {
         </div>
 
         {/* S6 — bulk-selection toggle (stable end of the bar, like sort/layout).
-            UX-A9 — Radix tooltip replaces the bare native title. */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
-              aria-pressed={bulkSelectMode}
-              onClick={() => (bulkSelectMode ? exitSelection() : setBulkSelectMode(true))}
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors",
-                bulkSelectMode
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-background text-muted-foreground hover:text-foreground",
-              )}
+            UX-A9 — Radix tooltip replaces the bare native title.
+            UX-B4 (T-4) — the ONE-time coach-mark is anchored HERE (the hidden
+            feature teaches at its own entry); ANY dismiss latches the flag. */}
+        <Popover
+          open={bulkCoachOpen}
+          onOpenChange={(open) => {
+            if (open) setBulkCoachOpen(true);
+            else dismissBulkCoach();
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+                  aria-pressed={bulkSelectMode}
+                  onClick={() => {
+                    dismissBulkCoach();
+                    if (bulkSelectMode) exitSelection();
+                    else setBulkSelectMode(true);
+                  }}
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full border transition-colors",
+                    bulkSelectMode
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <ListChecks className="size-4" aria-hidden="true" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
+              </TooltipContent>
+            </Tooltip>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            sideOffset={10}
+            className="w-64 p-3 text-xs"
+            role="dialog"
+            aria-label={t("library.bulk.coach.title")}
+          >
+            <p className="font-semibold">{t("library.bulk.coach.title")}</p>
+            <p className="mt-1 leading-5 text-muted-foreground">
+              {t("library.bulk.coach.desc")}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2.5 h-8 w-full text-xs"
+              onClick={dismissBulkCoach}
             >
-              <ListChecks className="size-4" aria-hidden="true" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {bulkSelectMode ? t("library.bulk.exit") : t("library.bulk.select")}
-          </TooltipContent>
-        </Tooltip>
+              {t("library.bulk.coach.dismiss")}
+            </Button>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Active filters bar (QE5): one removable chip per active filter,
@@ -793,11 +888,39 @@ export function LibraryView() {
           className="fixed inset-x-3 bottom-[74px] z-30 lg:inset-x-auto lg:bottom-4 lg:left-1/2 lg:right-auto lg:-translate-x-1/2"
         >
           <div className="flex flex-wrap items-center gap-1.5 rounded-xl border bg-popover p-2 shadow-lg">
-            <span className="min-w-16 px-1 text-xs font-semibold tabular-nums">
+            {/* UX-B4 (T-4) — the count is a polite live region (screen readers
+                announce every selection change) and visually ramps with the
+                selection state. */}
+            <span
+              aria-live="polite"
+              className={cn(
+                "min-w-16 px-1 text-xs font-semibold tabular-nums",
+                selectedIds.size > 0 ? "text-primary" : "text-muted-foreground",
+              )}
+            >
               {t("library.bulk.selected", {
                 n: formatNumber(selectedIds.size, locale),
               })}
             </span>
+
+            {/* UX-B4 (T-4) — select-all / deselect-all over the visible items:
+                the count bar now carries the WHOLE select → apply → exit flow. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              disabled={items.length === 0 || bulkNotes.isPending}
+              onClick={toggleSelectAll}
+            >
+              {allSelected ? (
+                <Square className="size-3.5" aria-hidden="true" />
+              ) : (
+                <CheckCheck className="size-3.5" aria-hidden="true" />
+              )}
+              {allSelected
+                ? t("library.bulk.deselectAll")
+                : t("library.bulk.selectAll")}
+            </Button>
 
             {filters.trash ? (
               /* Trash view: bulk restore only (soft-delete contract) */
