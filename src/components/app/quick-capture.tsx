@@ -170,7 +170,7 @@ export function QuickCapture() {
     const tagNames = form.tags;
 
     try {
-      await createNote.mutateAsync({
+      const created = await createNote.mutateAsync({
         type: form.type,
         title: form.title.trim(),
         content: form.content.trim() || null,
@@ -181,7 +181,17 @@ export function QuickCapture() {
         categoryId: form.categoryId === "none" ? null : form.categoryId,
         tagNames,
       });
-      toast.success(t("capture.saved"));
+      // UX-B6 (A-3.2) — the capture→organize bridge: an OPTIONAL micro-CTA on
+      // the success toast (sonner action button). Saving stays ONE step and
+      // is NEVER blocked or changed (P2/N10 untouched); the CTA only offers
+      // to open THIS item's sheet straight into the explicit edit session so
+      // the user can categorize it. Ignoring the toast = the plain old flow.
+      toast.success(t("capture.saved"), {
+        action: {
+          label: t("capture.organizeCta"),
+          onClick: () => openNote(created.id, { autoEdit: true }),
+        },
+      });
       setOpen(false);
     } catch {
       toast.error(t("toast.error"));

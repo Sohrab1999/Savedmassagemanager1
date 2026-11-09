@@ -240,6 +240,8 @@ export const en = {
   "capture.linkDetected": "Link detected — the URL field was filled in. Just add a title.",
   "capture.save": "Save item",
   "capture.saved": "Item saved",
+  // UX-B6 — the OPTIONAL capture→organize bridge (toast micro-CTA).
+  "capture.organizeCta": "Categorize this item",
   "capture.titleRequired": "Title is required",
   "capture.urlRequired": "A valid link is required",
   "capture.contentRequired": "Content is required for text items",
@@ -620,6 +622,8 @@ export const fa: Record<I18nKey, string> = {
   "capture.linkDetected": "لینک شناسایی شد — نشانی پر شد؛ فقط عنوان را وارد کنید.",
   "capture.save": "ذخیرهٔ مورد",
   "capture.saved": "مورد ذخیره شد",
+  // UX-B6 — پل اختیاری «ثبت → سازمان‌دهی» (میکرو-CTA توست).
+  "capture.organizeCta": "دسته‌بندی همین آیتم",
   "capture.titleRequired": "عنوان الزامی است",
   "capture.urlRequired": "لینک معتبر الزامی است",
   "capture.contentRequired": "برای مورد متنی، نوشتن متن الزامی است",

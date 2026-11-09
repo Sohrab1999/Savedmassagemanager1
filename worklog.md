@@ -6,6 +6,22 @@ Chronological record of every work step. Newest first. Each entry links to evide
 
 ## 2026-11-09
 
+### Step 41 — ROADMAP #3 فاز B: UX-B6 COMPLETE (the capture→organize bridge, A-3.2; 16/16 runbook + N10 23/23; SNAPSHOT v41) — the SECOND item of the standing step-40 owner order
+
+- **Trigger:** the SAME standing step-40 owner order (UX-B4 ✓ → **UX-B6, this step** → UX-B7 → فاز C; UX-B5 blocked on D18) + the standing 10-point persistence mandate.
+- **Skills applied (ECC):** `ecc-change-impact` (3 src files — quick-capture toast action, store transition flag, sheet render-phase consumption; ZERO change to the capture submit path, N10 matcher, B2 edit-session contract, undo/KPI), `ecc-verification-loop` (NEW 16-check runbook), `ecc-react-patterns` (the auto-edit intent consumed via the documented render-phase state adjustment — no setState-in-effect).
+- **UX-B6 — implemented:**
+  - **`src/components/app/quick-capture.tsx`** — the success toast now carries an OPTIONAL sonner action button `capture.organizeCta` («دسته‌بندی همین آیتم» / "Categorize this item"). The save itself is UNCHANGED — still ONE step, never blocked, never delayed (P2/N10); ignoring the toast = the exact plain flow.
+  - **`src/stores/app-store.ts`** — `openNote(id, opts?: { autoEdit?: boolean })` gained a transition-scoped `detailAutoEdit` flag (default false; `closeNote` resets it). Regular opens NEVER set it.
+  - **`src/components/app/note-detail-sheet.tsx`** — the B2 render-phase note-change adjustment reads `detailAutoEdit`: `setEditing(detailAutoEdit)` — the bridge opens the sheet STRAIGHT into the explicit edit session (the user's declared intent); every regular open still lands view-first (runbook-proven).
+  - **In the bridged session** the user picks a category and hits the existing «ذخیره» — one save, toast + read-only chip + API persistence.
+  - **i18n:** +1 key (capture.organizeCta) fa+en → **329/329 parity**.
+- **Verification — `scripts/verify-uxb6.sh` (NEW runbook, 16 checks):** **16/16 PASS** — capture dialog opens; **the success toast carries the CTA**; save closed the dialog (ONE step, never blocked); **CTA → the item's sheet opens STRAIGHT in the explicit edit session** (role=status «ویرایش فعال» + category combobox present); categorize «خرید» + save → toast «تغییرات ذخیره شد» + **API-proven (category.nameFa = خرید)** + view-mode chip read-only; **the plain flow (no CTA click) saves identically and opens NOTHING (optional bridge)**; **B2 regression: a regular card open lands in VIEW mode (no accidental auto-edit)**; console 0; canonical re-seed 21. **Evidence: 2 `b6-*.png`** (toast-CTA + bridged edit session @1280). **Full regression: `verify-n10.sh` 23/23 PASS.**
+- **Gates:** lint exit 0 · tsc 0 errors under `src/` · i18n 329/329.
+- **Files:** `src/components/app/quick-capture.tsx`, `src/stores/app-store.ts`, `src/components/app/note-detail-sheet.tsx`, `src/lib/i18n/dictionaries.ts` (+1), `scripts/verify-uxb6.sh` (NEW), `roadmaps/UIUX-OVERHAUL-ROADMAP.md` (v1.7), `roadmaps/evidence/b6-*.png` ×2, `worklog.md`, `docs/SNAPSHOT.md` (v41), `docs/ROADMAP.md`.
+- **Commits:** feat + docs (SHAs recorded live in this entry's commit list and in SNAPSHOT §9 by the ledger amendment); parity proven after every push (`git ls-remote origin` == `git ls-remote backup` == local HEAD).
+- **Next (same standing order):** UX-B7 (RTL directional icons + archive/trash scent) → فاز C (C1…C6). UX-B5 stays blocked until the owner registers D18.
+
 ### Step 40 — ROADMAP #3 فاز B: UX-B4 COMPLETE (bulk-flow redesign: one-time coach-mark + count-bar clarity + safe exit, T-4; 40/40 runbook + N10 23/23; SNAPSHOT v40) — PLUS: origin push UNBLOCKED with the owner's fresh PAT (65 commits were waiting)
 
 - **Trigger:** the owner's step-40 order — «گام بعدی مجاز: UX-B4/B6/B7 و فاز C — فقط با فرمان صریح مالک (B5 مشروط به حکم D18). شروع کن» + the standing 10-point persistence mandate; then (this session's first action) the owner supplied a fresh GitHub PAT for `origin` pushes. **UX-B4 executed first; B6/B7 and فاز C follow; UX-B5 remains BLOCKED (D18 has no ruling — verified: no D18 entry exists in `docs/DECISIONS.md`).**

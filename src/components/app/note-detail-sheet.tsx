@@ -183,6 +183,11 @@ function MediaPreview({ noteId }: { noteId: string }) {
 export function NoteDetailSheet() {
   const { t, locale } = useI18n();
   const detailNoteId = useAppStore((state) => state.detailNoteId);
+  // UX-B6 — organize-bridge intent: the capture-success toast CTA opens the
+  // sheet straight INTO the explicit edit session (categorize the new item).
+  // The flag lives in the store only for this one transition; every regular
+  // open still lands in the B2 view-first mode.
+  const detailAutoEdit = useAppStore((state) => state.detailAutoEdit);
   const closeNote = useAppStore((state) => state.closeNote);
   const noteQuery = useNote(detailNoteId);
   const categoriesQuery = useCategories();
@@ -213,11 +218,12 @@ export function NoteDetailSheet() {
   const [editDescription, setEditDescription] = useState("");
 
   // Reset the edit forms whenever a different note is opened (render-phase
-  // state adjustment, per React docs) — and always land in VIEW mode.
+  // state adjustment, per React docs) — and always land in VIEW mode, EXCEPT
+  // the UX-B6 organize bridge (toast CTA) which explicitly requests edit.
   const [lastNoteId, setLastNoteId] = useState<string | null>(null);
   if (note && note.id !== lastNoteId) {
     setLastNoteId(note.id);
-    setEditing(false);
+    setEditing(detailAutoEdit);
     setEditTitle(note.title);
     setEditContent(note.content ?? "");
     setEditCategoryId(note.categoryId ?? "none");

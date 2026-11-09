@@ -120,6 +120,10 @@ function replaceHash(hash: string): void {
 interface AppState {
   view: AppView;
   detailNoteId: string | null;
+  /** UX-B6 — true ONLY when the sheet was opened by an explicit organize
+   * intent (the capture-success toast CTA); the sheet then lands directly in
+   * edit mode. Regular opens never set it. */
+  detailAutoEdit: boolean;
   captureOpen: boolean;
   filters: LibraryFiltersState;
   /** S6 — bulk-selection mode lives here so the mobile capture FAB can hide
@@ -129,7 +133,7 @@ interface AppState {
    * by the header search trigger (desktop pill + mobile icon). */
   paletteOpen: boolean;
   setView: (view: AppView) => void;
-  openNote: (id: string) => void;
+  openNote: (id: string, opts?: { autoEdit?: boolean }) => void;
   closeNote: () => void;
   setCaptureOpen: (open: boolean) => void;
   setBulkSelectMode: (active: boolean) => void;
@@ -143,6 +147,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // synced after hydration (bindHashNavigation) to avoid hydration mismatch.
   view: "dashboard",
   detailNoteId: null,
+  // UX-B6 — the organize bridge is OFF by default (deterministic SSR value).
+  detailAutoEdit: false,
   captureOpen: false,
   filters: { ...defaultLibraryFilters },
   bulkSelectMode: false,
@@ -162,8 +168,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ view });
   },
 
-  openNote: (id) => set({ detailNoteId: id }),
-  closeNote: () => set({ detailNoteId: null }),
+  openNote: (id, opts) =>
+    set({ detailNoteId: id, detailAutoEdit: opts?.autoEdit === true }),
+  closeNote: () => set({ detailNoteId: null, detailAutoEdit: false }),
   setCaptureOpen: (open) => set({ captureOpen: open }),
   setBulkSelectMode: (active) => set({ bulkSelectMode: active }),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
